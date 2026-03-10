@@ -1,6 +1,6 @@
 'use client'
-export default function Split ({}) {
+export default function Split({ onSplit }) {
     return (
-        <button>Split</button>
+        <button className="action-btn btn-split" onClick={onSplit}>Split</button>
     )
 }

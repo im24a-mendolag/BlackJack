@@ -9,6 +9,6 @@ export default function Stand() {
     };
 
     return (
-        <button onClick={handleStand}>Stand</button>
+        <button className="action-btn btn-stand" onClick={handleStand}>Stand</button>
     )
 }

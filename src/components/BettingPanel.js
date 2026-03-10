@@ -1,13 +1,13 @@
 'use client'
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDeck } from '../context/DeckContext';
 import './BettingPanel.css';
 
 const QUICK_BETS = [10, 25, 100, 500];
 
-export default function BettingPanel({ onDeal, autoDeal, setAutoDeal }) {
+export default function BettingPanel({ onDeal, defaultBet = 0 }) {
   const { bankroll, setCurrentBet } = useDeck();
-  const [betAmount, setBetAmount] = useState(0);
+  const [betAmount, setBetAmount] = useState(() => defaultBet <= bankroll ? defaultBet : 0);
 
   const handleQuickBet = (amount) => {
     if (betAmount + amount <= bankroll) {
@@ -24,6 +24,14 @@ export default function BettingPanel({ onDeal, autoDeal, setAutoDeal }) {
       setBetAmount(0);
     }
   };
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.code === 'Space') { e.preventDefault(); handleDeal(); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [betAmount, bankroll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="betting-panel">
@@ -55,15 +63,6 @@ export default function BettingPanel({ onDeal, autoDeal, setAutoDeal }) {
       </div>
 
       <div className="betting-row betting-row-actions">
-        <label className="auto-deal-label">
-          <input
-            type="checkbox"
-            checked={autoDeal}
-            onChange={(e) => setAutoDeal(e.target.checked)}
-          />
-          Auto Deal
-        </label>
-
         <button
           className="deal-btn"
           onClick={handleDeal}

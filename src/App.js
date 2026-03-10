@@ -28,11 +28,16 @@ function App() {
   const [resultAmount, setResultAmount] = useState(0);
   const [resultMessage, setResultMessage] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const [autoDeal, setAutoDeal] = useState(false);
   const [lastBetAmount, setLastBetAmount] = useState(0);
 
+  // Split state
+  const [splitHand2, setSplitHand2] = useState([]);                   // second hand (waiting to be played)
+  const [splitHand1Completed, setSplitHand1Completed] = useState([]); // first hand (done)
+  const [splitBet, setSplitBet] = useState(0);                        // original bet when split was made
+  const [splitHand1Bet, setSplitHand1Bet] = useState(0);              // actual bet for hand 1 (may be doubled)
+  const [splitResults, setSplitResults] = useState(null);             // {result1, result2, amount1, amount2}
+
   // Prevents the game effect from re-entering during banner pauses.
-  // Using a ref (not state) so it doesn't trigger re-renders.
   const gameTransitionRef = useRef(false);
 
   const suits = ["♠", "♥", "♦", "♣"];
@@ -54,25 +59,9 @@ function App() {
     if (deck.length === 0) createDeck();
   }, [deck.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleBetPayout = useCallback((result) => {
-    if (result === 'Player Wins') {
-      setBankroll(prev => prev + currentBet * 2);
-      setResultAmount(currentBet);
-      setResultMessage(result);
-    } else if (result === 'House Wins') {
-      setResultAmount(currentBet);
-      setResultMessage(result);
-    } else if (result === 'Push') {
-      setBankroll(prev => prev + currentBet);
-      setResultAmount(0);
-      setResultMessage(result);
-    }
-  }, [currentBet, setBankroll]);
-
   const resolveRound = useCallback((playerH, dealerH, betAmount) => {
     const result = checkWinner({ playerHand: playerH, dealerHand: dealerH });
     setWinner(result);
-    // Use betAmount passed directly to avoid stale currentBet closure
     const amount = betAmount != null ? betAmount : currentBet;
     if (result === 'Player Wins') {
       setBankroll(prev => prev + amount * 2);
@@ -96,7 +85,6 @@ function App() {
     setWinner(null);
     setStatusMessage('');
 
-    // Capture the 4 cards immediately before any async
     const c0 = deck[0], c1 = deck[1], c2 = deck[2], c3 = deck[3];
 
     setTimeout(() => setPlayerHand([c0]), 500);
@@ -143,36 +131,139 @@ function App() {
     }, 2000);
   }, [deck, setDeck, setDealerHand, setPlayerHand, setPlayerTurn, setBankroll, resolveRound]);
 
-  // Game logic: player bust detection + dealer auto-play
+  const handleDouble = useCallback(() => {
+    if (playerHand.length !== 2 || currentBet > bankroll || deck.length === 0) return;
+    setBankroll(prev => prev - currentBet);
+    setCurrentBet(prev => prev * 2);
+    const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
+    setTimeout(() => {
+      setPlayerHand(updatedHand);
+      setDeck(updatedDeck);
+      setPlayerTurn(false);
+    }, 500);
+  }, [playerHand, currentBet, bankroll, deck, setBankroll, setCurrentBet, setPlayerHand, setDeck, setPlayerTurn]);
+
+  const handleSplit = useCallback(() => {
+    const isAlreadySplit = splitHand2.length > 0 || splitHand1Completed.length > 0;
+    if (
+      playerHand.length !== 2 ||
+      playerHand[0]?.value !== playerHand[1]?.value ||
+      isAlreadySplit ||
+      deck.length < 2 ||
+      currentBet > bankroll
+    ) return;
+
+    const [card1, card2] = playerHand;
+    const newCard1 = deck[0];
+    const newCard2 = deck[1];
+    setBankroll(prev => prev - currentBet);
+    setSplitBet(currentBet);
+    setDeck(prev => prev.slice(2));
+    setPlayerHand([card1, newCard1]);
+    setSplitHand2([card2, newCard2]);
+  }, [playerHand, splitHand2, splitHand1Completed, currentBet, bankroll, deck, setBankroll, setDeck, setPlayerHand]);
+
+  // Game logic: player bust/21 detection + dealer auto-play
   useEffect(() => {
     if (playerHand.length === 0 || dealerHand.length === 0) return;
-    // Guard: prevent re-entry while a banner timeout is pending
     if (gameTransitionRef.current) return;
 
-    // Player stood (playerTurn flipped to false while in player phase) → go to dealer
+    // Player stood → transition to hand 2 (split) or go to dealer
     if (gamePhase === 'player' && !playerTurn) {
-      const playerTotal = getHandTotal(playerHand);
-      if (playerTotal <= 21) {
-        setGamePhase('dealer');
+      if (splitHand2.length > 0) {
+        // Finished hand 1, move to hand 2
+        setSplitHand1Completed(playerHand.slice());
+        setSplitHand1Bet(currentBet);
+        setCurrentBet(splitBet);
+        setPlayerHand(splitHand2);
+        setSplitHand2([]);
+        setPlayerTurn(true);
+      } else {
+        const playerTotal = getHandTotal(playerHand);
+        if (playerTotal <= 21) {
+          setGamePhase('dealer');
+        } else {
+          // Busted after double down (playerTurn already false)
+          gameTransitionRef.current = true;
+          const ph = playerHand.slice();
+          const dh = dealerHand.slice();
+          const isInSplitHand2 = splitHand1Completed.length > 0;
+          setTimeout(() => {
+            setStatusMessage('Bust!');
+            setTimeout(() => {
+              setStatusMessage('');
+              if (isInSplitHand2) {
+                gameTransitionRef.current = false;
+                setGamePhase('dealer');
+              } else {
+                resolveRound(ph, dh);
+                setGamePhase('result');
+              }
+            }, 1500);
+          }, 600);
+        }
       }
       return;
     }
 
-    // Player bust
+    // Player bust or 21
     if (gamePhase === 'player' && playerTurn) {
       const playerTotal = getHandTotal(playerHand);
+
       if (playerTotal > 21) {
         gameTransitionRef.current = true;
         setPlayerTurn(false);
-        setStatusMessage('Bust!');
-        // Capture hands for the closure
         const ph = playerHand.slice();
         const dh = dealerHand.slice();
+        const isSplitHand1 = splitHand2.length > 0;
+        const isInSplitHand2 = splitHand1Completed.length > 0;
+        const hand2Snap = splitHand2.slice();
+        const bet1Snap = currentBet;
+        const splitBetSnap = splitBet;
+
         setTimeout(() => {
-          setStatusMessage('');
-          resolveRound(ph, dh);
-          setGamePhase('result');
-        }, 1500);
+          setStatusMessage('Bust!');
+          setTimeout(() => {
+            setStatusMessage('');
+            if (isSplitHand1) {
+              // Hand 1 busted, transition to hand 2
+              setSplitHand1Completed(ph);
+              setSplitHand1Bet(bet1Snap);
+              setCurrentBet(splitBetSnap);
+              setPlayerHand(hand2Snap);
+              setSplitHand2([]);
+              setPlayerTurn(true);
+              gameTransitionRef.current = false;
+            } else if (isInSplitHand2) {
+              // Hand 2 busted, proceed to dealer
+              gameTransitionRef.current = false;
+              setGamePhase('dealer');
+            } else {
+              // Normal bust
+              resolveRound(ph, dh);
+              setGamePhase('result');
+            }
+          }, 1500);
+        }, 600);
+
+      } else if (playerTotal === 21) {
+        const isInSplit = splitHand2.length > 0 || splitHand1Completed.length > 0;
+        if (playerHand.length === 2 && !isInSplit) {
+          // Natural blackjack fallback (not in split)
+          gameTransitionRef.current = true;
+          setPlayerTurn(false);
+          const ph = playerHand.slice();
+          const dh = dealerHand.slice();
+          setStatusMessage('Blackjack!');
+          setTimeout(() => {
+            setStatusMessage('');
+            resolveRound(ph, dh);
+            setGamePhase('result');
+          }, 1500);
+        } else {
+          // Hit/split to 21: auto-stand
+          setPlayerTurn(false);
+        }
       }
       return;
     }
@@ -190,20 +281,45 @@ function App() {
       } else {
         // Dealer done drawing
         gameTransitionRef.current = true;
-        const isBust = dealerTotal > 21;
-        if (isBust) setStatusMessage('Dealer Busts!');
-        const delay = isBust ? 1500 : 500;
-        // Capture hands for the closure
         const ph = playerHand.slice();
         const dh = dealerHand.slice();
+        const ph1 = splitHand1Completed.slice();
+        const bet2 = currentBet;
+        const bet1 = splitHand1Bet;
+
         setTimeout(() => {
-          setStatusMessage('');
-          resolveRound(ph, dh);
-          setGamePhase('result');
-        }, delay);
+          if (ph1.length > 0) {
+            // Split round: resolve both hands
+            const result1 = checkWinner({ playerHand: ph1, dealerHand: dh });
+            const result2 = checkWinner({ playerHand: ph, dealerHand: dh });
+            if (result1 === 'Player Wins') setBankroll(prev => prev + bet1 * 2);
+            else if (result1 === 'Push') setBankroll(prev => prev + bet1);
+            if (result2 === 'Player Wins') setBankroll(prev => prev + bet2 * 2);
+            else if (result2 === 'Push') setBankroll(prev => prev + bet2);
+            setSplitResults({ result1, result2, amount1: bet1, amount2: bet2 });
+            setTimeout(() => setGamePhase('result'), 600);
+          } else {
+            // Normal round
+            if (dealerTotal > 21) {
+              setStatusMessage('Dealer Busts!');
+            } else {
+              const result = checkWinner({ playerHand: ph, dealerHand: dh });
+              if (result === 'Player Wins') setStatusMessage('You Win!');
+              else if (result === 'House Wins') setStatusMessage('Dealer Wins!');
+              else setStatusMessage('Push!');
+            }
+            setTimeout(() => {
+              setStatusMessage('');
+              resolveRound(ph, dh);
+              setGamePhase('result');
+            }, 1500);
+          }
+        }, 600);
       }
     }
-  }, [gamePhase, playerTurn, playerHand, dealerHand, deck, resolveRound, setDealerHand, setDeck, setPlayerTurn]);
+  }, [gamePhase, playerTurn, playerHand, dealerHand, deck, resolveRound,
+      setDealerHand, setDeck, setPlayerTurn, setCurrentBet, setBankroll,
+      splitHand2, splitHand1Completed, splitBet, splitHand1Bet, currentBet]);
 
   const handleResultsClose = useCallback(() => {
     gameTransitionRef.current = false;
@@ -213,16 +329,22 @@ function App() {
     setWinner(null);
     setStatusMessage('');
     setCurrentBet(0);
+    setSplitHand2([]);
+    setSplitHand1Completed([]);
+    setSplitBet(0);
+    setSplitHand1Bet(0);
+    setSplitResults(null);
+    setGamePhase('betting');
+  }, [setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
 
-    if (autoDeal && lastBetAmount > 0 && lastBetAmount <= bankroll) {
-      setTimeout(() => dealCards(lastBetAmount), 300);
-    } else {
-      setGamePhase('betting');
-    }
-  }, [autoDeal, lastBetAmount, bankroll, dealCards, setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
-
-  const canSplit = playerHand.length === 2 && playerHand[0]?.value === playerHand[1]?.value;
-  const canDouble = playerHand.length === 2 && currentBet * 2 <= bankroll;
+  const canSplit = (
+    playerHand.length === 2 &&
+    playerHand[0]?.value === playerHand[1]?.value &&
+    splitHand2.length === 0 &&
+    splitHand1Completed.length === 0 &&
+    currentBet <= bankroll
+  );
+  const canDouble = playerHand.length === 2 && currentBet <= bankroll;
 
   // Hotkeys (W=Hit, S=Stand, D=Double, A=Split)
   useEffect(() => {
@@ -232,7 +354,7 @@ function App() {
 
       const key = event.key.toLowerCase();
       switch (key) {
-        case 'w': // Hit
+        case 'w':
           if (deck.length > 0) {
             const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
             setTimeout(() => {
@@ -241,27 +363,14 @@ function App() {
             }, 500);
           }
           break;
-        case 's': // Stand
+        case 's':
           setPlayerTurn(false);
           break;
-        case 'd': // Double
-          if (canDouble) {
-            setBankroll(prev => prev - currentBet);
-            setCurrentBet(prev => prev * 2);
-            if (deck.length > 0) {
-              const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
-              setTimeout(() => {
-                setPlayerHand(updatedHand);
-                setDeck(updatedDeck);
-                setPlayerTurn(false);
-              }, 500);
-            }
-          }
+        case 'd':
+          handleDouble();
           break;
-        case 'a': // Split (placeholder)
-          if (canSplit) {
-            // Split logic not yet implemented
-          }
+        case 'a':
+          handleSplit();
           break;
         default:
           break;
@@ -270,7 +379,28 @@ function App() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gamePhase, playerHand, deck, currentBet, bankroll, canSplit, canDouble, setPlayerHand, setDeck, setPlayerTurn, setBankroll, setCurrentBet]);
+  }, [gamePhase, playerHand, deck, handleDouble, handleSplit, setPlayerHand, setDeck, setPlayerTurn]);
+
+  const handleReset = useCallback(() => {
+    gameTransitionRef.current = false;
+    setBankroll(1000);
+    setPlayerHand([]);
+    setDealerHand([]);
+    setPlayerTurn(true);
+    setWinner(null);
+    setStatusMessage('');
+    setCurrentBet(0);
+    setLastBetAmount(0);
+    setSplitHand2([]);
+    setSplitHand1Completed([]);
+    setSplitBet(0);
+    setSplitHand1Bet(0);
+    setSplitResults(null);
+    setGamePhase('betting');
+  }, [setBankroll, setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
+
+  const isSplitActive = splitHand2.length > 0 || splitHand1Completed.length > 0;
+  const isOutOfMoney = gamePhase === 'betting' && bankroll < 10;
 
   return (
     <div className="game-table">
@@ -285,24 +415,41 @@ function App() {
       <div className="table-area">
         <DealerHand hand={dealerHand} gamePhase={gamePhase} />
         {statusMessage && <StatusBanner message={statusMessage} />}
-        <PlayerHand hand={playerHand} />
+        {isSplitActive ? (
+          <div className="split-hands-row">
+            <PlayerHand
+              hand={splitHand1Completed.length > 0 ? splitHand1Completed : playerHand}
+              label="Hand 1"
+              isActive={splitHand2.length > 0}
+            />
+            <PlayerHand
+              hand={splitHand1Completed.length > 0 ? playerHand : splitHand2}
+              label="Hand 2"
+              isActive={splitHand1Completed.length > 0}
+            />
+          </div>
+        ) : (
+          <PlayerHand hand={playerHand} />
+        )}
       </div>
 
       <div className="controls-bar">
         {gamePhase === 'betting' && (
-          <BettingPanel
-            onDeal={dealCards}
-            autoDeal={autoDeal}
-            setAutoDeal={setAutoDeal}
-          />
+          <BettingPanel onDeal={dealCards} defaultBet={lastBetAmount} />
         )}
         {gamePhase === 'player' && !statusMessage && (
-          <PlayerActions canSplit={canSplit} />
+          <PlayerActions
+            canSplit={canSplit}
+            canDouble={canDouble}
+            onDouble={handleDouble}
+            onSplit={handleSplit}
+          />
         )}
         {gamePhase === 'result' && (
           <ResultPanel
             result={resultMessage}
             amount={resultAmount}
+            splitResults={splitResults}
             onNext={handleResultsClose}
           />
         )}
@@ -312,6 +459,17 @@ function App() {
           </div>
         )}
       </div>
+      {isOutOfMoney && (
+        <div className="broke-overlay">
+          <div className="broke-modal">
+            <h2 className="broke-title">You're broke!</h2>
+            <p className="broke-subtitle">Not enough to place a bet.</p>
+            <button className="broke-reset-btn" onClick={handleReset}>
+              Reset — $1000
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

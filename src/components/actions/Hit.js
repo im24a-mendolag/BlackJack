@@ -18,6 +18,6 @@ export default function Hit() {
     };
 
     return (
-        <button onClick={handleHit}>Hit</button>
+        <button className="action-btn btn-hit" onClick={handleHit}>Hit</button>
     )
 }

@@ -1,63 +1,114 @@
 .result-panel {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 1.5em;
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: 0.5em;
 }
 
 .result-panel h2 {
   margin: 0;
-  font-size: 1.8em;
+  font-size: 2.6em;
+  font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .result-win {
-  color: #4caf50;
+  color: #4ade80;
+  text-shadow: 0 0 30px rgba(74, 222, 128, 0.5);
 }
 
 .result-loss {
-  color: #f44336;
+  color: #f87171;
+  text-shadow: 0 0 30px rgba(248, 113, 113, 0.5);
 }
 
 .result-push {
-  color: #ffa726;
+  color: #fb923c;
 }
 
 .result-amount {
-  font-size: 1.4em;
-  font-weight: bold;
+  font-size: 1.7em;
+  font-weight: 800;
 }
 
 .amount-win {
-  color: #4caf50;
+  color: #4ade80;
 }
 
 .amount-loss {
-  color: #f44336;
+  color: #f87171;
 }
 
 .amount-push {
-  color: #ffa726;
+  color: #fb923c;
+  font-size: 0.85em;
+  opacity: 0.85;
 }
 
 .next-hand-btn {
-  background-color: #1565c0;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #fff;
-  border: 2px solid #1976d2;
-  border-radius: 4px;
-  padding: 0.55em 1.6em;
-  font-size: 1em;
-  font-weight: bold;
+  border: none;
+  border-radius: 12px;
+  padding: 0.9em 2.6em;
+  font-size: 1.3em;
+  font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.1s ease;
+  letter-spacing: 0.05em;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin-top: 0.5em;
 }
 
 .next-hand-btn:hover {
-  background-color: #1976d2;
-  transform: translateY(-1px);
+  filter: brightness(1.1);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 26px rgba(37, 99, 235, 0.5);
 }
 
 .next-hand-btn:active {
   transform: translateY(0);
+  filter: brightness(0.95);
+  box-shadow: none;
+}
+
+/* ── Split results ───────────────────────────────────── */
+
+.split-results-row {
+  display: flex;
+  align-items: center;
+  gap: 1.8em;
+}
+
+.split-result-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.split-hand-label {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.split-result-outcome {
+  font-size: 2em;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.split-result-amount {
+  font-size: 1.2em;
+  font-weight: 800;
+}
+
+.split-divider {
+  width: 1px;
+  height: 4.5em;
+  background-color: rgba(255, 255, 255, 0.15);
 }

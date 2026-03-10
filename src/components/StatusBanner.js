@@ -5,7 +5,10 @@ const MESSAGE_COLORS = {
   'Dealer Blackjack!': '#ff9800',
   'Bust!': '#f44336',
   'Dealer Busts!': '#4caf50',
-  'Push! Both Blackjack!': '#ff9800',
+  'Push! Both Blackjack!': '#9e9e9e',
+  'You Win!': '#4caf50',
+  'Dealer Wins!': '#f44336',
+  'Push!': '#9e9e9e',
 };
 
 export default function StatusBanner({ message }) {
