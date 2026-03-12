@@ -183,9 +183,9 @@ function App() {
 
     const c0 = workingDeck[0], c1 = workingDeck[1], c2 = workingDeck[2], c3 = workingDeck[3];
 
-    setTimeout(() => setPlayerHand([c0]), 500);
-    setTimeout(() => setDealerHand([c1]), 1000);
-    setTimeout(() => setPlayerHand([c0, c2]), 1500);
+    setTimeout(() => setPlayerHand([c0]), 650);
+    setTimeout(() => setDealerHand([c1]), 1300);
+    setTimeout(() => setPlayerHand([c0, c2]), 1950);
     setTimeout(() => {
       const finalPlayer = [c0, c2];
       const finalDealer = [c1, c3];
@@ -232,7 +232,7 @@ function App() {
           setExpectedAction(getBasicStrategyAction(finalPlayer, finalDealer[1], true, canSplitNow));
         }
       }
-    }, 2000);
+    }, 2600);
   }, [deck, setDeck, setDealerHand, setPlayerHand, setPlayerTurn, setBankroll, resolveRound,
       trainingMode, practiceHardHands, practiceSoftHands, practicePairs]);
 
@@ -257,8 +257,8 @@ function App() {
     setTimeout(() => {
       setPlayerHand(updatedHand);
       setDeck(updatedDeck);
-      setPlayerTurn(false);
     }, 500);
+    setTimeout(() => setPlayerTurn(false), 1150);
   }, [playerHand, currentBet, bankroll, deck, setBankroll, setCurrentBet, setPlayerHand, setDeck, setPlayerTurn,
       trainingMode, handleActionValidation]);
 
@@ -280,8 +280,10 @@ function App() {
     setBankroll(prev => prev - currentBet);
     setSplitBet(currentBet);
     setDeck(prev => prev.slice(2));
-    setPlayerHand([card1, newCard1]);
-    setSplitHand2([card2, newCard2]);
+    setPlayerHand([card1]);
+    setSplitHand2([card2]);
+    setTimeout(() => setPlayerHand([card1, newCard1]), 650);
+    setTimeout(() => setSplitHand2([card2, newCard2]), 1300);
   }, [playerHand, splitHand2, splitHand1Completed, currentBet, bankroll, deck, setBankroll, setDeck, setPlayerHand,
       trainingMode, handleActionValidation]);
 
