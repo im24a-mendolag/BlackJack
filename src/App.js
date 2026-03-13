@@ -12,6 +12,7 @@ import checkWinner from "./logic/checkWinner";
 import getHandTotal from "./logic/getHandTotal";
 import drawCard from "./logic/drawCard";
 import { getBasicStrategyAction } from "./theory/basicStrategy";
+import StrategyTableModal from "./components/StrategyTableModal";
 
 // gamePhase values: 'betting' | 'dealing' | 'player' | 'dealer' | 'pausing' | 'result'
 
@@ -72,6 +73,7 @@ function App() {
   const [expectedAction, setExpectedAction] = useState(null);
   const [actionFeedback, setActionFeedback] = useState(null);
   const [trainingFeedback, setTrainingFeedback] = useState(null);
+  const [showStrategyTable, setShowStrategyTable] = useState(false);
 
   // Split state
   const [splitHand2, setSplitHand2] = useState([]);                   // second hand (waiting to be played)
@@ -337,7 +339,6 @@ function App() {
 
       if (playerTotal > 21) {
         gameTransitionRef.current = true;
-        setPlayerTurn(false);
         const ph = playerHand.slice();
         const dh = dealerHand.slice();
         const isSplitHand1 = splitHand2.length > 0;
@@ -346,7 +347,10 @@ function App() {
         const bet1Snap = currentBet;
         const splitBetSnap = splitBet;
 
+        // Delay setPlayerTurn(false) so the bust card's flip animation (600ms)
+        // finishes before the dealer hole card reveal animation starts.
         setTimeout(() => {
+          setPlayerTurn(false);
           setStatusMessage('Bust!');
           setTimeout(() => {
             setStatusMessage('');
@@ -369,7 +373,7 @@ function App() {
               setGamePhase('result');
             }
           }, 1500);
-        }, 600);
+        }, 650);
 
       } else if (playerTotal === 21) {
         const isInSplit = splitHand2.length > 0 || splitHand1Completed.length > 0;
@@ -386,8 +390,9 @@ function App() {
             setGamePhase('result');
           }, 1500);
         } else {
-          // Hit/split to 21: auto-stand
-          setPlayerTurn(false);
+          // Hit/split to 21: delay auto-stand so the card flip animation (600ms)
+          // finishes before the dealer hole card reveal animation starts.
+          setTimeout(() => setPlayerTurn(false), 650);
         }
       }
       return;
@@ -557,9 +562,9 @@ function App() {
   // Auto-deal next hand whenever training mode lands on betting phase
   useEffect(() => {
     if (trainingMode !== 'basic' || gamePhase !== 'betting') return;
-    const t = setTimeout(() => dealCardsRef.current?.(1), 350);
+    const t = setTimeout(() => dealCardsRef.current?.(lastBetAmount || 10), 350);
     return () => clearTimeout(t);
-  }, [trainingMode, gamePhase]);
+  }, [trainingMode, gamePhase, lastBetAmount]);
 
   const isSplitActive = splitHand2.length > 0 || splitHand1Completed.length > 0;
   const isOutOfMoney = gamePhase === 'betting' && bankroll < 10;
@@ -645,23 +650,32 @@ function App() {
             if (gamePhase !== 'betting') cancelHand();
           };
           return (
-            <div className="training-hand-panel">
-              <span className="training-hand-panel-label">Practice</span>
-              {[
-                ['Hard', practiceHardHands, () => toggle(setPracticeHardHands)],
-                ['Soft', practiceSoftHands, () => toggle(setPracticeSoftHands)],
-                ['Pairs', practicePairs,    () => toggle(setPracticePairs)],
-              ].map(([label, active, handler]) => (
+            <>
+              <div className="training-hand-panel">
+                <span className="training-hand-panel-label">Practice</span>
+                {[
+                  ['Hard', practiceHardHands, () => toggle(setPracticeHardHands)],
+                  ['Soft', practiceSoftHands, () => toggle(setPracticeSoftHands)],
+                  ['Pairs', practicePairs,    () => toggle(setPracticePairs)],
+                ].map(([label, active, handler]) => (
+                  <button
+                    key={label}
+                    className={`training-hand-btn${active ? ' training-hand-btn-on' : ''}`}
+                    onClick={active && enabledCount === 1 ? undefined : handler}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="training-hand-panel strategy-table-panel">
                 <button
-                  key={label}
-                  className={`training-hand-btn${active ? ' training-hand-btn-on' : ''}`}
-                  onClick={handler}
-                  disabled={active && enabledCount === 1}
+                  className="training-hand-btn strategy-table-btn"
+                  onClick={() => setShowStrategyTable(true)}
                 >
-                  {label}
+                  Strategy Table
                 </button>
-              ))}
-            </div>
+              </div>
+            </>
           );
         })()}
         {showStats !== 'off' && (
@@ -730,6 +744,9 @@ function App() {
           </div>
         )}
       </div>
+      {showStrategyTable && (
+        <StrategyTableModal onClose={() => setShowStrategyTable(false)} />
+      )}
       {isOutOfMoney && trainingMode !== 'basic' && (
         <div className="broke-overlay">
           <div className="broke-modal">

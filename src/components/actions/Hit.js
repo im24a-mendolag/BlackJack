@@ -18,6 +18,6 @@ export default function Hit({ onValidate }) {
     };
 
     return (
-        <button className="action-btn btn-hit" onClick={handleHit}>Hit</button>
+        <button className="action-btn btn-hit" onClick={handleHit}>Hit <kbd className="key-hint">W</kbd></button>
     )
 }

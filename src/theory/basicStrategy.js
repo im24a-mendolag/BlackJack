@@ -1,7 +1,7 @@
 // Multi-deck S17 Basic Strategy
 // Dealer upcard columns: [2, 3, 4, 5, 6, 7, 8, 9, 10, A] → indices 0–9
 
-const HARD = {
+export const HARD = {
    5: ['H','H','H','H','H','H','H','H','H','H'],
    6: ['H','H','H','H','H','H','H','H','H','H'],
    7: ['H','H','H','H','H','H','H','H','H','H'],
@@ -19,7 +19,7 @@ const HARD = {
 };
 
 // Key = non-Ace pip value (2 = soft 13 … 9 = soft 20)
-const SOFT = {
+export const SOFT = {
   2: ['H', 'H', 'H', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],
   3: ['H', 'H', 'H', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],
   4: ['H', 'H', 'D', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],
@@ -31,7 +31,7 @@ const SOFT = {
 };
 
 // Key = raw card.value string. Face cards normalize to '10' before lookup.
-const PAIRS = {
+export const PAIRS = {
   'A':  ['P','P','P','P','P','P','P','P','P','P'],
   '2':  ['P','P','P','P','P','P','H','H','H','H'],
   '3':  ['P','P','P','P','P','P','H','H','H','H'],

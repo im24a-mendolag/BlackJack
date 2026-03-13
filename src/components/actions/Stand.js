@@ -10,6 +10,6 @@ export default function Stand({ onValidate }) {
     };
 
     return (
-        <button className="action-btn btn-stand" onClick={handleStand}>Stand</button>
+        <button className="action-btn btn-stand" onClick={handleStand}>Stand <kbd className="key-hint">S</kbd></button>
     )
 }

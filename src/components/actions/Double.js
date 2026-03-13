@@ -6,7 +6,7 @@ export default function Double({ onDouble, canDouble }) {
             onClick={onDouble}
             disabled={!canDouble}
         >
-            Double
+            Double <kbd className="key-hint">D</kbd>
         </button>
     )
 }

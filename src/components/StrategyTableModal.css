@@ -1,0 +1,140 @@
+/* ── Overlay ─────────────────────────────────────────── */
+
+.st-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+  padding: 1em;
+}
+
+.st-modal {
+  background: #0f0f1a;
+  border: 1px solid #2a2a40;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  padding: 1.2em 1.4em 1.4em;
+  max-height: 90vh;
+  overflow-y: auto;
+  max-width: 95vw;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+
+.st-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+}
+
+.st-modal-title {
+  font-size: 1em;
+  font-weight: 800;
+  color: #f59e0b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.st-close-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9em;
+  font-weight: 700;
+  padding: 0.25em 0.6em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.st-close-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ── Legend ──────────────────────────────────────────── */
+
+.st-legend {
+  display: flex;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+.st-leg {
+  font-size: 0.72em;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 0.2em 0.6em;
+}
+
+/* ── Tables layout ───────────────────────────────────── */
+
+.st-tables {
+  display: flex;
+  gap: 1.2em;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.st-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.st-title {
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Table ───────────────────────────────────────────── */
+
+.st-table {
+  border-collapse: collapse;
+  font-size: 0.72em;
+  font-weight: 700;
+}
+
+.st-corner {
+  width: 2.2em;
+}
+
+.st-head {
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  padding: 0.2em 0.35em;
+  font-size: 0.95em;
+}
+
+.st-row-label {
+  color: rgba(255, 255, 255, 0.5);
+  text-align: right;
+  padding-right: 0.5em;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.st-cell {
+  text-align: center;
+  padding: 0.22em 0.3em;
+  border-radius: 3px;
+  min-width: 1.8em;
+}
+
+/* ── Cell colours ────────────────────────────────────── */
+
+.sc-h  { background: rgba(156, 163, 175, 0.15); color: #9ca3af; }
+.sc-s  { background: rgba(220, 38,  38,  0.25); color: #f87171; }
+.sc-d  { background: rgba(37,  99,  235, 0.25); color: #60a5fa; }
+.sc-ds { background: rgba(6,   182, 212, 0.22); color: #22d3ee; }
+.sc-p  { background: rgba(124, 58,  237, 0.25); color: #a78bfa; }
