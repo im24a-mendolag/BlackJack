@@ -15,6 +15,7 @@ import getHandTotal from "./logic/getHandTotal";
 import drawCard from "./logic/drawCard";
 import { getBasicStrategyAction } from "./theory/basicStrategy";
 import StrategyTableModal from "./components/StrategyTableModal";
+import LeaderboardModal from "./components/LeaderboardModal";
 import TestDealPanel from "./components/TestDealPanel";
 import Link from 'next/link';
 
@@ -102,6 +103,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
   const [actionFeedback, setActionFeedback] = useState(null);
   const [trainingFeedback, setTrainingFeedback] = useState(null);
   const [showStrategyTable, setShowStrategyTable] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Test deal state (freeplay only)
   const [testHand, setTestHand] = useState(null); // { v1, v2, label } | null
@@ -712,6 +714,12 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
               </button>
             ))}
           </nav>
+          <button
+            className="nav-btn nav-btn-highlight"
+            onClick={() => setShowLeaderboard(true)}
+          >
+            Leaderboard
+          </button>
         </div>
         <div className="game-header-right">
           {session?.user?.username && (
@@ -901,6 +909,9 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
       </div>
       {showStrategyTable && (
         <StrategyTableModal onClose={() => setShowStrategyTable(false)} />
+      )}
+      {showLeaderboard && (
+        <LeaderboardModal onClose={() => setShowLeaderboard(false)} />
       )}
       {isOutOfMoney && trainingMode !== 'basic' && (
         <div className="broke-overlay">
