@@ -100,6 +100,9 @@
   color: #f3f4f6;
 }
 
+.profile-stat-positive { color: #22c55e; }
+.profile-stat-negative { color: #f87171; }
+
 .profile-form {
   display: flex;
   flex-direction: column;

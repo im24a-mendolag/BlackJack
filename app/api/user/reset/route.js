@@ -11,7 +11,7 @@ export async function POST() {
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { bankroll: 1000, hands: 0, wins: 0, losses: 0, pushes: 0, resets: { increment: 1 } },
+    data: { bankroll: 1000, hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, resets: { increment: 1 } },
   })
 
   return NextResponse.json({ success: true })

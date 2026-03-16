@@ -38,8 +38,10 @@ export default function ProfilePage() {
     )
   }
 
-  const { username, bankroll, hands, wins, losses, pushes, resets } = stats
+  const { username, bankroll, hands, wins, pushes, resets, totalIncome, blackjacks, trainingHands, trainingCorrect } = stats
   const winRate = hands > 0 ? Math.round((wins / hands) * 100) : 0
+  const trainingAccuracy = trainingHands > 0 ? Math.round((trainingCorrect / trainingHands) * 100) : null
+  const incomeDisplay = (totalIncome >= 0 ? '+' : '') + '$' + totalIncome
 
   async function call(key, path, body) {
     setLoading(l => ({ ...l, [key]: true }))
@@ -122,18 +124,30 @@ export default function ProfilePage() {
               <span className="profile-stat-value">{winRate}%</span>
             </div>
             <div className="profile-stat">
-              <span className="profile-stat-label">Wins</span>
-              <span className="profile-stat-value">{wins}</span>
+              <span className="profile-stat-label">Total Income</span>
+              <span className={`profile-stat-value${totalIncome > 0 ? ' profile-stat-positive' : totalIncome < 0 ? ' profile-stat-negative' : ''}`}>
+                {incomeDisplay}
+              </span>
             </div>
             <div className="profile-stat">
-              <span className="profile-stat-label">Losses</span>
-              <span className="profile-stat-value">{losses}</span>
+              <span className="profile-stat-label">Blackjacks</span>
+              <span className="profile-stat-value">{blackjacks ?? 0}</span>
             </div>
             <div className="profile-stat">
               <span className="profile-stat-label">Pushes</span>
               <span className="profile-stat-value">{pushes}</span>
             </div>
-            <div className="profile-stat profile-stat-full">
+            <div className="profile-stat">
+              <span className="profile-stat-label">Training Hands</span>
+              <span className="profile-stat-value">{trainingHands ?? 0}</span>
+            </div>
+            <div className="profile-stat">
+              <span className="profile-stat-label">Strategy Accuracy</span>
+              <span className="profile-stat-value">
+                {trainingAccuracy !== null ? `${trainingAccuracy}%` : '—'}
+              </span>
+            </div>
+            <div className="profile-stat">
               <span className="profile-stat-label">Resets</span>
               <span className="profile-stat-value">{resets ?? 0}</span>
             </div>

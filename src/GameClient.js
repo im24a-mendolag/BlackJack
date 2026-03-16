@@ -41,9 +41,9 @@ export default function GameClient() {
     prevUserIdRef.current = session?.user?.id
   }, [session])
 
-  const handleRoundEnd = useCallback(({ bankroll, stats }) => {
+  const handleRoundEnd = useCallback(({ bankroll, stats, trainingStats }) => {
     if (!session?.user?.id) return
-    pendingSave.current = { bankroll, ...stats }
+    pendingSave.current = { bankroll, ...stats, ...trainingStats }
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       const data = pendingSave.current
@@ -75,8 +75,8 @@ export default function GameClient() {
   const showModal = status === 'unauthenticated' && !guestMode && !modalDismissed
   const initialBankroll = session?.user?.bankroll ?? 1000
   const initialStats = session?.user
-    ? { hands: session.user.hands, wins: session.user.wins, losses: session.user.losses, pushes: session.user.pushes }
-    : { hands: 0, wins: 0, losses: 0, pushes: 0 }
+    ? { hands: session.user.hands, wins: session.user.wins, losses: session.user.losses, pushes: session.user.pushes, totalIncome: session.user.totalIncome ?? 0, blackjacks: session.user.blackjacks ?? 0, trainingHands: session.user.trainingHands ?? 0, trainingCorrect: session.user.trainingCorrect ?? 0 }
+    : { hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, trainingHands: 0, trainingCorrect: 0 }
 
   return (
     <>

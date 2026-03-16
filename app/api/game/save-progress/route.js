@@ -9,11 +9,17 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { bankroll, hands, wins, losses, pushes } = await req.json()
+  const { bankroll, hands, wins, losses, pushes, totalIncome, blackjacks, trainingHands, trainingCorrect } = await req.json()
+
+  const data = { bankroll, hands, wins, losses, pushes }
+  if (totalIncome !== undefined) data.totalIncome = totalIncome
+  if (blackjacks !== undefined) data.blackjacks = blackjacks
+  if (trainingHands !== undefined) data.trainingHands = trainingHands
+  if (trainingCorrect !== undefined) data.trainingCorrect = trainingCorrect
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { bankroll, hands, wins, losses, pushes },
+    data,
   })
 
   return NextResponse.json({ success: true })

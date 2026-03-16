@@ -11,7 +11,7 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { username: true, bankroll: true, hands: true, wins: true, losses: true, pushes: true, resets: true },
+    select: { username: true, bankroll: true, hands: true, wins: true, losses: true, pushes: true, resets: true, totalIncome: true, blackjacks: true, trainingHands: true, trainingCorrect: true },
   })
 
   return NextResponse.json(user)

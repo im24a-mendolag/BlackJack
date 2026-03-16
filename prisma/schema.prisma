@@ -16,7 +16,11 @@ model User {
   wins      Int      @default(0)
   losses    Int      @default(0)
   pushes    Int      @default(0)
-  resets    Int      @default(0)
+  resets          Int      @default(0)
+  totalIncome     Int      @default(0)
+  blackjacks      Int      @default(0)
+  trainingHands   Int      @default(0)
+  trainingCorrect Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

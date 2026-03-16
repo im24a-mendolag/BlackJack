@@ -58,7 +58,7 @@ function findValidArrangement(deck, enabledTypes) {
   return deck;
 }
 
-function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRoundEnd, onShowAuth, volumeOn, onVolumeChange }) {
+function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, trainingHands: 0, trainingCorrect: 0 }, onRoundEnd, onShowAuth, volumeOn, onVolumeChange }) {
   const { data: session } = useSession();
   const {
     deck, setDeck,
@@ -83,6 +83,11 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
   const menuRef = useRef(null);
   const bankrollRef = useRef(bankroll);
   useEffect(() => { bankrollRef.current = bankroll; }, [bankroll]);
+
+  const initialTrainingRef = useRef({ hands: initialStats.trainingHands ?? 0, correct: initialStats.trainingCorrect ?? 0 });
+  const strategyStatsRef = useRef({ total: 0, correct: 0 });
+  const statsRef = useRef(stats);
+  useEffect(() => { statsRef.current = stats; }, [stats]);
 
   // Sync volume state with the sound engine.
   useEffect(() => { setVolumeEnabled(volumeOn); }, [volumeOn]);
@@ -166,14 +171,22 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
       }
     }
     setResultMessage(isNaturalBlackjack ? 'Blackjack!' : result);
+    const incomeDelta = trainingMode !== 'basic' ? delta - (betAmount ?? currentBet) : 0;
     setStats(prev => {
       const next = {
         hands: prev.hands + 1,
         wins: prev.wins + (result === 'Player Wins' ? 1 : 0),
         losses: prev.losses + (result === 'House Wins' ? 1 : 0),
         pushes: prev.pushes + (result === 'Push' ? 1 : 0),
+        totalIncome: prev.totalIncome + incomeDelta,
+        blackjacks: prev.blackjacks + (isNaturalBlackjack ? 1 : 0),
       };
-      onRoundEnd?.({ bankroll: bankrollRef.current + delta, stats: next });
+      const s = strategyStatsRef.current;
+      const trainingStats = trainingMode === 'basic' ? {
+        trainingHands: initialTrainingRef.current.hands + s.total,
+        trainingCorrect: initialTrainingRef.current.correct + s.correct,
+      } : undefined;
+      onRoundEnd?.({ bankroll: bankrollRef.current + delta, stats: next, trainingStats });
       return next;
     });
     return result;
@@ -311,10 +324,21 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
   const handleActionValidation = useCallback((action) => {
     if (trainingMode !== 'basic' || !expectedAction) return;
     const isCorrect = action === expectedAction;
-    setStrategyStats(prev => ({ total: prev.total + 1, correct: prev.correct + (isCorrect ? 1 : 0) }));
+    playSound(isCorrect ? 'win' : 'bust');
+    const next = { total: strategyStatsRef.current.total + 1, correct: strategyStatsRef.current.correct + (isCorrect ? 1 : 0) };
+    strategyStatsRef.current = next;
+    setStrategyStats(next);
+    onRoundEnd?.({
+      bankroll: bankrollRef.current,
+      stats: statsRef.current,
+      trainingStats: {
+        trainingHands: initialTrainingRef.current.hands + next.total,
+        trainingCorrect: initialTrainingRef.current.correct + next.correct,
+      },
+    });
     setTrainingFeedback({ correct: isCorrect, expected: expectedAction });
     setGamePhase('training-result');
-  }, [trainingMode, expectedAction]);
+  }, [trainingMode, expectedAction, onRoundEnd]);
 
   const handleDouble = useCallback(() => {
     if (playerHand.length !== 2 || (trainingMode !== 'basic' && currentBet > bankroll) || deck.length === 0) return;
@@ -500,14 +524,22 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
               if (result2 === 'Player Wins') { setBankroll(prev => prev + bet2 * 2); splitDelta += bet2 * 2; }
               else if (result2 === 'Push') { setBankroll(prev => prev + bet2); splitDelta += bet2; }
             }
+            const splitIncomeDelta = trainingMode !== 'basic' ? splitDelta - (bet1 + bet2) : 0;
             setStats(prev => {
               const next = {
                 hands: prev.hands + 2,
                 wins: prev.wins + (result1 === 'Player Wins' ? 1 : 0) + (result2 === 'Player Wins' ? 1 : 0),
                 losses: prev.losses + (result1 === 'House Wins' ? 1 : 0) + (result2 === 'House Wins' ? 1 : 0),
                 pushes: prev.pushes + (result1 === 'Push' ? 1 : 0) + (result2 === 'Push' ? 1 : 0),
+                totalIncome: prev.totalIncome + splitIncomeDelta,
+                blackjacks: prev.blackjacks,
               };
-              onRoundEnd?.({ bankroll: bankrollRef.current + splitDelta, stats: next });
+              const s = strategyStatsRef.current;
+              const trainingStats = trainingMode === 'basic' ? {
+                trainingHands: initialTrainingRef.current.hands + s.total,
+                trainingCorrect: initialTrainingRef.current.correct + s.correct,
+              } : undefined;
+              onRoundEnd?.({ bankroll: bankrollRef.current + splitDelta, stats: next, trainingStats });
               return next;
             });
             setSplitResults({ result1, result2, amount1: bet1, amount2: bet2 });
@@ -623,7 +655,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
     setSplitBet(0);
     setSplitHand1Bet(0);
     setSplitResults(null);
-    setStats({ hands: 0, wins: 0, losses: 0, pushes: 0 });
+    setStats({ hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0 });
     setStrategyStats({ total: 0, correct: 0 });
     setExpectedAction(null);
     setActionFeedback(null);
@@ -777,19 +809,36 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
               </div>
             </div>
           ) : (
-            <div className="training-hand-panel strategy-table-panel">
-              <button
-                className="training-hand-btn"
-                onClick={() => { if (gamePhase !== 'betting') cancelHand(); setTrainingSetup(true); }}
-              >
-                Reconfigure
-              </button>
-              <button
-                className="training-hand-btn strategy-table-btn"
-                onClick={() => setShowStrategyTable(true)}
-              >
-                Strategy Table
-              </button>
+            <div className="training-controls-left">
+              <div className="training-hand-panel strategy-table-panel">
+                <button
+                  className="training-hand-btn"
+                  onClick={() => { if (gamePhase !== 'betting') cancelHand(); setTrainingSetup(true); }}
+                >
+                  Reconfigure
+                </button>
+                <button
+                  className="training-hand-btn strategy-table-btn"
+                  onClick={() => setShowStrategyTable(true)}
+                >
+                  Strategy Table
+                </button>
+              </div>
+              <div className="training-session-stats">
+                <div className="training-session-stat-row">
+                  <span>Hands</span>
+                  <span className="training-session-stat-value">{strategyStats.total}</span>
+                </div>
+                <div className="training-session-stat-row training-session-stat-divider" />
+                <div className="training-session-stat-row">
+                  <span>Correct</span>
+                  {(() => {
+                    const pct = strategyStats.total > 0 ? Math.round(strategyStats.correct / strategyStats.total * 100) : null;
+                    const cls = pct === null ? 'training-session-stat-value' : pct >= 70 ? 'training-session-stat-value stat-win' : pct < 50 ? 'training-session-stat-value stat-loss' : 'training-session-stat-value';
+                    return <span className={cls}>{pct !== null ? `${pct}%` : '—'}</span>;
+                  })()}
+                </div>
+              </div>
             </div>
           )
         )}
