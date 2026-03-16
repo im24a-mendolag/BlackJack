@@ -602,7 +602,7 @@ function App() {
         ) : (
           <div className="game-bankroll">
             <span className="hud-item">Bankroll: ${bankroll}</span>
-            {currentBet > 0 && <span className="hud-item hud-bet">Bet: ${currentBet}</span>}
+            {currentBet > 0 && <span className="hud-item hud-bet">Bet: ${isSplitActive ? (splitHand1Completed.length > 0 ? splitHand1Bet : splitBet) + currentBet : currentBet}</span>}
           </div>
         )}
         <div className="menu-container" ref={menuRef}>
