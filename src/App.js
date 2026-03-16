@@ -85,6 +85,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
   useEffect(() => { bankrollRef.current = bankroll; }, [bankroll]);
 
   // Training practice state
+  const [trainingSetup, setTrainingSetup] = useState(false);
   const [practiceHardHands, setPracticeHardHands] = useState(true);
   const [practiceSoftHands, setPracticeSoftHands] = useState(true);
   const [practicePairs, setPracticePairs] = useState(true);
@@ -615,10 +616,10 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
 
   // Auto-deal next hand whenever training mode lands on betting phase
   useEffect(() => {
-    if (trainingMode !== 'basic' || gamePhase !== 'betting') return;
+    if (trainingMode !== 'basic' || gamePhase !== 'betting' || trainingSetup) return;
     const t = setTimeout(() => dealCardsRef.current?.(lastBetAmount || 10), 350);
     return () => clearTimeout(t);
-  }, [trainingMode, gamePhase, lastBetAmount]);
+  }, [trainingMode, gamePhase, lastBetAmount, trainingSetup]);
 
   const isSplitActive = splitHand2.length > 0 || splitHand1Completed.length > 0;
   const isOutOfMoney = gamePhase === 'betting' && bankroll < 10;
@@ -642,6 +643,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
                   if (soon || val === trainingMode) return;
                   if (gamePhase !== 'betting') cancelHand();
                   setTrainingMode(val);
+                  if (val === 'basic') setTrainingSetup(true);
                 }}
               >
                 {label}{soon && <span className="soon-badge">Soon</span>}
@@ -713,41 +715,54 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0 }, onRou
           <span className="table-rules-divider">·</span>
           <span>4 Decks</span>
         </div>
-        {trainingMode === 'basic' && (() => {
-          const enabledCount = [practiceHardHands, practiceSoftHands, practicePairs].filter(Boolean).length;
-          const toggle = (setter) => {
-            setter(v => !v);
-            if (gamePhase !== 'betting') cancelHand();
-          };
-          return (
-            <>
-              <div className="training-hand-panel">
-                <span className="training-hand-panel-label">Practice</span>
-                {[
-                  ['Hard', practiceHardHands, () => toggle(setPracticeHardHands)],
-                  ['Soft', practiceSoftHands, () => toggle(setPracticeSoftHands)],
-                  ['Pairs', practicePairs,    () => toggle(setPracticePairs)],
-                ].map(([label, active, handler]) => (
-                  <button
-                    key={label}
-                    className={`training-hand-btn${active ? ' training-hand-btn-on' : ''}`}
-                    onClick={active && enabledCount === 1 ? undefined : handler}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="training-hand-panel strategy-table-panel">
+        {trainingMode === 'basic' && (
+          trainingSetup ? (
+            <div className="training-setup-overlay">
+              <div className="training-setup-card">
+                <h2 className="training-setup-title">Training Setup</h2>
+                <p className="training-setup-subtitle">Select which hand types to practice</p>
+                <div className="training-setup-checks">
+                  {[
+                    ['Hard Hands', practiceHardHands, setPracticeHardHands],
+                    ['Soft Hands', practiceSoftHands, setPracticeSoftHands],
+                    ['Pairs',      practicePairs,      setPracticePairs],
+                  ].map(([label, checked, setter]) => (
+                    <label key={label} className="training-setup-check">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setter(e.target.checked)}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
                 <button
-                  className="training-hand-btn strategy-table-btn"
-                  onClick={() => setShowStrategyTable(true)}
+                  className="training-setup-start-btn"
+                  disabled={![practiceHardHands, practiceSoftHands, practicePairs].some(Boolean)}
+                  onClick={() => setTrainingSetup(false)}
                 >
-                  Strategy Table
+                  Start Training
                 </button>
               </div>
-            </>
-          );
-        })()}
+            </div>
+          ) : (
+            <div className="training-hand-panel strategy-table-panel">
+              <button
+                className="training-hand-btn"
+                onClick={() => { if (gamePhase !== 'betting') cancelHand(); setTrainingSetup(true); }}
+              >
+                Reconfigure
+              </button>
+              <button
+                className="training-hand-btn strategy-table-btn"
+                onClick={() => setShowStrategyTable(true)}
+              >
+                Strategy Table
+              </button>
+            </div>
+          )
+        )}
 <DealerHand hand={dealerHand} gamePhase={gamePhase} />
         {statusMessage && <StatusBanner message={statusMessage} />}
         {isSplitActive ? (

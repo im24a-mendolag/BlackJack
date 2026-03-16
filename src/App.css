@@ -345,8 +345,9 @@
 }
 
 .strategy-table-panel {
-  top: auto;
-  bottom: 1.5em;
+  right: auto;
+  left: 1.5em;
+  top: 1.5em;
   transform: none;
 }
 
@@ -362,6 +363,91 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-size: 0.9em;
+}
+
+.training-setup-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 20;
+}
+
+.training-setup-card {
+  background: #0f0f1a;
+  border: 1px solid #2a2a40;
+  border-radius: 18px;
+  padding: 2em 2.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2em;
+  min-width: 280px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.training-setup-title {
+  font-size: 1.3em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #f59e0b;
+  margin: 0;
+  text-align: center;
+}
+
+.training-setup-subtitle {
+  font-size: 0.85em;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  text-align: center;
+}
+
+.training-setup-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.training-setup-check {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  cursor: pointer;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  user-select: none;
+}
+
+.training-setup-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+.training-setup-start-btn {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1.5px solid rgba(245, 158, 11, 0.5);
+  border-radius: 10px;
+  color: #f59e0b;
+  font-size: 1em;
+  font-weight: 800;
+  padding: 0.7em 1em;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.15s;
+}
+
+.training-setup-start-btn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.22);
+}
+
+.training-setup-start-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 /* ── Action Feedback Flash ───────────────────────────── */
