@@ -43,14 +43,16 @@ export default function ResultPanel({ result, amount, splitResults, onNext }) {
     );
   }
 
-  const isWin = result === 'Player Wins';
+  const isBlackjack = result === 'Blackjack!';
+  const isWin = result === 'Player Wins' || isBlackjack;
   const isLoss = result === 'House Wins';
   const isPush = result === 'Push';
 
   return (
     <div className="result-panel">
       <h2 className={isWin ? 'result-win' : isLoss ? 'result-loss' : 'result-push'}>
-        {isWin && 'You Win!'}
+        {isBlackjack && 'Blackjack!'}
+        {result === 'Player Wins' && 'You Win!'}
         {isLoss && 'You Lose'}
         {isPush && 'Push'}
       </h2>

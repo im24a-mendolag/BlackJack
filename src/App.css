@@ -391,6 +391,31 @@
   min-height: 0;
 }
 
+/* ── Table Rules ─────────────────────────────────────── */
+
+.table-rules {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.table-rules-divider {
+  color: rgba(255, 255, 255, 0.07);
+}
+
 /* ── Status Banner ───────────────────────────────────── */
 
 .status-banner {
@@ -572,12 +597,22 @@
   background-color: #0f0f1a;
   border-top: 1px solid #1e1e30;
   padding: 1em 2em;
-  height: 200px;
+  min-height: 200px;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+}
+
+.betting-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6em;
+  width: 100%;
+  max-width: 620px;
 }
 
 /* ── Action Buttons (Hit / Stand / Double / Split) ───── */

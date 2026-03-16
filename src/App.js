@@ -13,6 +13,7 @@ import getHandTotal from "./logic/getHandTotal";
 import drawCard from "./logic/drawCard";
 import { getBasicStrategyAction } from "./theory/basicStrategy";
 import StrategyTableModal from "./components/StrategyTableModal";
+import TestDealPanel from "./components/TestDealPanel";
 
 // gamePhase values: 'betting' | 'dealing' | 'player' | 'dealer' | 'pausing' | 'result'
 
@@ -20,6 +21,17 @@ function classifyHandType(c0, c2) {
   if (c0.value === c2.value) return 'pair';
   if (c0.value === 'A' || c2.value === 'A') return 'soft';
   return 'hard';
+}
+
+function setupTestHand(deck, v1, v2) {
+  const d = [...deck];
+  // Move a v1 card to position 0 (player's first card)
+  const i1 = d.findIndex(c => c.value === v1);
+  if (i1 > 0) { const [c] = d.splice(i1, 1); d.unshift(c); }
+  // Move a v2 card to position 2 (player's second card), skipping positions 0 & 1
+  const i2 = d.findIndex((c, i) => c.value === v2 && i >= 2);
+  if (i2 > 2) { const [c] = d.splice(i2, 1); d.splice(2, 0, c); }
+  return d;
 }
 
 function findValidArrangement(deck, enabledTypes) {
@@ -75,6 +87,9 @@ function App() {
   const [trainingFeedback, setTrainingFeedback] = useState(null);
   const [showStrategyTable, setShowStrategyTable] = useState(false);
 
+  // Test deal state (freeplay only)
+  const [testHand, setTestHand] = useState(null); // { v1, v2, label } | null
+
   // Split state
   const [splitHand2, setSplitHand2] = useState([]);                   // second hand (waiting to be played)
   const [splitHand1Completed, setSplitHand1Completed] = useState([]); // first hand (done)
@@ -119,8 +134,13 @@ function App() {
     const result = checkWinner({ playerHand: playerH, dealerHand: dealerH });
     setWinner(result);
     const amount = betAmount != null ? betAmount : currentBet;
+    const isNaturalBlackjack = result === 'Player Wins' && playerH.length === 2 && getHandTotal(playerH) === 21;
     if (trainingMode !== 'basic') {
-      if (result === 'Player Wins') {
+      if (isNaturalBlackjack) {
+        // Natural blackjack pays 3:2
+        setBankroll(prev => prev + Math.floor(amount * 2.5));
+        setResultAmount(Math.floor(amount * 1.5));
+      } else if (result === 'Player Wins') {
         setBankroll(prev => prev + amount * 2);
         setResultAmount(amount);
       } else if (result === 'House Wins') {
@@ -130,7 +150,7 @@ function App() {
         setResultAmount(0);
       }
     }
-    setResultMessage(result);
+    setResultMessage(isNaturalBlackjack ? 'Blackjack!' : result);
     setStats(prev => ({
       hands: prev.hands + 1,
       wins: prev.wins + (result === 'Player Wins' ? 1 : 0),
@@ -181,6 +201,8 @@ function App() {
         practicePairs     && 'pair',
       ].filter(Boolean);
       workingDeck = findValidArrangement(deck, enabledTypes);
+    } else if (testHand) {
+      workingDeck = setupTestHand(deck, testHand.v1, testHand.v2);
     }
 
     const c0 = workingDeck[0], c1 = workingDeck[1], c2 = workingDeck[2], c3 = workingDeck[3];
@@ -236,7 +258,7 @@ function App() {
       }
     }, 2600);
   }, [deck, setDeck, setDealerHand, setPlayerHand, setPlayerTurn, setBankroll, resolveRound,
-      trainingMode, practiceHardHands, practiceSoftHands, practicePairs]);
+      trainingMode, practiceHardHands, practiceSoftHands, practicePairs, testHand]);
 
   // Keep ref current so effects can call dealCards without stale closures
   dealCardsRef.current = dealCards;
@@ -475,13 +497,13 @@ function App() {
     setGamePhase('betting');
   }, [setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
 
-  const canSplit = (
+  const hasSplitPair = (
     playerHand.length === 2 &&
     playerHand[0]?.value === playerHand[1]?.value &&
     splitHand2.length === 0 &&
-    splitHand1Completed.length === 0 &&
-    currentBet <= bankroll
+    splitHand1Completed.length === 0
   );
+  const canSplit = hasSplitPair && currentBet <= bankroll;
   const canDouble = playerHand.length === 2 && currentBet <= bankroll;
 
   // Hotkeys (W=Hit, S=Stand, D=Double, A=Split)
@@ -643,6 +665,13 @@ function App() {
       </header>
 
       <div className="table-area">
+        <div className="table-rules">
+          <span>Blackjack Pays 3 to 2</span>
+          <span className="table-rules-divider">·</span>
+          <span>Dealer Stands Soft 17</span>
+          <span className="table-rules-divider">·</span>
+          <span>4 Decks</span>
+        </div>
         {trainingMode === 'basic' && (() => {
           const enabledCount = [practiceHardHands, practiceSoftHands, practicePairs].filter(Boolean).length;
           const toggle = (setter) => {
@@ -715,10 +744,16 @@ function App() {
 
       <div className="controls-bar">
         {gamePhase === 'betting' && trainingMode !== 'basic' && (
-          <BettingPanel onDeal={dealCards} defaultBet={lastBetAmount} />
+          <div className="betting-controls">
+            {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
+              <TestDealPanel testHand={testHand} onSelect={setTestHand} />
+            )}
+            <BettingPanel onDeal={dealCards} defaultBet={lastBetAmount} />
+          </div>
         )}
         {gamePhase === 'player' && !statusMessage && (
           <PlayerActions
+            hasSplitPair={hasSplitPair}
             canSplit={canSplit}
             canDouble={canDouble}
             onDouble={handleDouble}

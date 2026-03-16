@@ -4,13 +4,13 @@ import Stand from './actions/Stand.js'
 import Double from './actions/Double.js'
 import Split from './actions/Split.js'
 
-export default function PlayerActions({ canSplit, canDouble, onDouble, onSplit, onValidate, actionFeedback }) {
+export default function PlayerActions({ hasSplitPair, canSplit, canDouble, onDouble, onSplit, onValidate, actionFeedback }) {
     return (
         <div className={`action-buttons-wrapper${actionFeedback ? ` feedback-${actionFeedback}` : ''}`}>
             <Hit onValidate={onValidate} />
             <Stand onValidate={onValidate} />
             <Double onDouble={onDouble} canDouble={canDouble} />
-            {canSplit && <Split onSplit={onSplit} />}
+            {hasSplitPair && <Split onSplit={onSplit} canSplit={canSplit} />}
         </div>
     )
 }

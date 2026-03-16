@@ -1,0 +1,102 @@
+.test-deal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  width: 100%;
+  max-width: 620px;
+}
+
+.test-deal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  flex-wrap: wrap;
+}
+
+.test-deal-label {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.test-deal-tabs {
+  display: flex;
+  gap: 0.25em;
+}
+
+.test-tab {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75em;
+  font-weight: 700;
+  padding: 0.22em 0.7em;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.test-tab:hover {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.35);
+  color: #c4b5fd;
+}
+
+.test-tab-active {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.55);
+  color: #a78bfa;
+}
+
+.test-clear-btn {
+  margin-left: auto;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  border-radius: 100px;
+  color: #a78bfa;
+  font-size: 0.78em;
+  font-weight: 700;
+  padding: 0.2em 0.85em;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.test-clear-btn:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.7);
+}
+
+.test-deal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28em;
+}
+
+.test-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8em;
+  font-weight: 700;
+  padding: 0.22em 0.6em;
+  cursor: pointer;
+  transition: all 0.12s;
+  min-width: 36px;
+  text-align: center;
+}
+
+.test-chip:hover {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.4);
+  color: #c4b5fd;
+}
+
+.test-chip-active {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.7);
+  color: #a78bfa;
+}
