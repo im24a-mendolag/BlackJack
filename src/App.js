@@ -354,19 +354,30 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
     setGamePhase('training-result');
   }, [trainingMode, expectedAction, onRoundEnd]);
 
+  const handleStand = useCallback(() => {
+    handleActionValidation('stand');
+    if (trainingMode === 'basic') return;
+    playSound('stand');
+    setTimeout(() => setPlayerTurn(false), 500);
+  }, [trainingMode, handleActionValidation, setPlayerTurn]);
+
   const handleDouble = useCallback(() => {
     if (playerHand.length !== 2 || (trainingMode !== 'basic' && currentBet > bankroll) || deck.length === 0) return;
     handleActionValidation('double');
     if (trainingMode === 'basic') return;
+    // Compute the new hand/deck now (pure), state updates come after the delay
+    const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
+    playSound('chip');
     setBankroll(prev => prev - currentBet);
     setCurrentBet(prev => prev * 2);
-    const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
-    playSound('draw');
     setTimeout(() => {
-      setPlayerHand(updatedHand);
-      setDeck(updatedDeck);
+      playSound('draw');
+      setTimeout(() => {
+        setPlayerHand(updatedHand);
+        setDeck(updatedDeck);
+      }, 500);
+      setTimeout(() => setPlayerTurn(false), 1150);
     }, 500);
-    setTimeout(() => setPlayerTurn(false), 1150);
   }, [playerHand, currentBet, bankroll, deck, setBankroll, setCurrentBet, setPlayerHand, setDeck, setPlayerTurn,
       trainingMode, handleActionValidation]);
 
@@ -385,13 +396,16 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
     const [card1, card2] = playerHand;
     const newCard1 = deck[0];
     const newCard2 = deck[1];
+    playSound('chip');
     setBankroll(prev => prev - currentBet);
     setSplitBet(currentBet);
     setDeck(prev => prev.slice(2));
-    setPlayerHand([card1]);
-    setSplitHand2([card2]);
-    setTimeout(() => setPlayerHand([card1, newCard1]), 650);
-    setTimeout(() => setSplitHand2([card2, newCard2]), 1300);
+    setTimeout(() => {
+      setPlayerHand([card1]);
+      setSplitHand2([card2]);
+      setTimeout(() => { playSound('draw'); setPlayerHand([card1, newCard1]); }, 650);
+      setTimeout(() => { playSound('draw'); setSplitHand2([card2, newCard2]); }, 1300);
+    }, 500);
   }, [playerHand, splitHand2, splitHand1Completed, currentBet, bankroll, deck, setBankroll, setDeck, setPlayerHand,
       trainingMode, handleActionValidation]);
 
@@ -645,8 +659,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
           }
           break;
         case 's':
-          handleActionValidation('stand');
-          if (trainingMode !== 'basic') setPlayerTurn(false);
+          handleStand();
           break;
         case 'd':
           handleDouble();
@@ -661,7 +674,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gamePhase, playerHand, deck, handleDouble, handleSplit, setPlayerHand, setDeck, setPlayerTurn, handleActionValidation]);
+  }, [gamePhase, playerHand, deck, handleStand, handleDouble, handleSplit, setPlayerHand, setDeck, handleActionValidation]);
 
   const handleReset = useCallback(() => {
     gameTransitionRef.current = false;
@@ -912,6 +925,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
             hasSplitPair={hasSplitPair}
             canSplit={canSplit}
             canDouble={canDouble}
+            onStand={trainingMode !== 'basic' ? handleStand : undefined}
             onDouble={handleDouble}
             onSplit={handleSplit}
             onValidate={trainingMode === 'basic' ? handleActionValidation : undefined}

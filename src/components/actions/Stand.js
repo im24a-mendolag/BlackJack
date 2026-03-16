@@ -1,12 +1,16 @@
 'use client'
 import { useDeck } from "../../context/DeckContext";
 
-export default function Stand({ onValidate }) {
+export default function Stand({ onValidate, onStand }) {
     const { setPlayerTurn } = useDeck();
 
     const handleStand = () => {
         if (onValidate) onValidate('stand');
-        setPlayerTurn(false);
+        if (onStand) {
+            onStand();
+        } else {
+            setPlayerTurn(false);
+        }
     };
 
     return (

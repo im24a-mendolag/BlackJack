@@ -12,6 +12,7 @@ const SOUND_FILES = {
   push: '/sounds/push.mp3',
   chip: '/sounds/chip.mp3',
   clearbet: '/sounds/clearbet.mp3',
+  stand: '/sounds/stand.mp3',
 };
 
 function getAudioContext() {
@@ -190,6 +191,13 @@ export function playSound(event) {
       break;
     case 'clearbet':
       playAudioEvent('clearbet');
+      break;
+    case 'stand':
+      // Soft two-step descending tone — like placing a card down to stand
+      if (!playAudioEvent('stand')) {
+        playTone({ frequency: 500, duration: 0.1, type: 'triangle', volume: 0.13 });
+        playTone({ frequency: 360, duration: 0.13, type: 'triangle', volume: 0.11, when: 0.09 });
+      }
       break;
     default:
       break;
