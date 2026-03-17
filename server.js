@@ -115,6 +115,7 @@ function publicLobby(lobby) {
       splitResult: p.splitResult,
       resultAmount: p.resultAmount,
       splitResultAmount: p.splitResultAmount,
+      forcedReset: p.forcedReset || false,
     })),
     dealerHand: lobby.dealerHand,
     dealerHoleHidden: lobby.dealerHoleHidden,
@@ -214,6 +215,14 @@ function resolveRound(lobby) {
     }
   }
 
+  // Forced reset: any player at 0 bankroll gets topped back up
+  for (const player of lobby.players) {
+    if (player.bankroll <= 0) {
+      player.bankroll = 1000;
+      player.forcedReset = true;
+    }
+  }
+
   lobby.status = 'round-end';
   broadcast(lobby, { type: 'game:round-end', state: publicLobby(lobby) });
 
@@ -239,6 +248,7 @@ function startNewRound(lobby) {
     p.splitResult = null;
     p.resultAmount = 0;
     p.splitResultAmount = 0;
+    p.forcedReset = false;
   }
 
   lobby.dealerHand = [];

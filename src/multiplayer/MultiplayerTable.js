@@ -53,25 +53,24 @@ function MultiDealerHand({ hand, holeHidden }) {
 
 // ── Compact fixed-size window for other players ───────────────────────────────
 
+function resultLabel(result) {
+  return result === 'Player Wins' ? 'Win'
+    : result === 'House Wins' ? 'Loss'
+    : result === 'Blackjack!' ? 'BJ!'
+    : result === 'Push' ? 'Push'
+    : null;
+}
+
+function resultClass(result) {
+  return result === 'Player Wins' || result === 'Blackjack!' ? 'mp-slot-result-win'
+    : result === 'Push' ? 'mp-slot-result-push'
+    : result ? 'mp-slot-result-lose' : '';
+}
+
 function PlayerWindow({ player, isActive, isLocal }) {
   if (!player) return null;
   const isSplit = player.hand1Completed && player.hand1Completed.length > 0;
   const isDone = player.handStatus === 'stood' || player.handStatus === 'busted';
-
-  const displayCards = isSplit
-    ? [...player.hand1Completed, ...player.hand]
-    : player.hand;
-
-  const resultLabel = player.result === 'Player Wins' ? 'Win'
-    : player.result === 'House Wins' ? 'Loss'
-    : player.result === 'Blackjack!' ? 'BJ!'
-    : player.result === 'Push' ? 'Push'
-    : null;
-
-  const resultClass = player.result === 'Player Wins' || player.result === 'Blackjack!'
-    ? 'mp-slot-result-win'
-    : player.result === 'Push' ? 'mp-slot-result-push'
-    : player.result ? 'mp-slot-result-lose' : '';
 
   const windowClass = [
     'mp-other-window',
@@ -80,6 +79,9 @@ function PlayerWindow({ player, isActive, isLocal }) {
     isDone && !isActive ? 'mp-other-window-done' : '',
   ].filter(Boolean).join(' ');
 
+  const r1Label = resultLabel(player.result);
+  const r2Label = resultLabel(player.splitResult);
+
   return (
     <div className={windowClass}>
       <div className="mp-other-window-name">
@@ -87,16 +89,45 @@ function PlayerWindow({ player, isActive, isLocal }) {
         {isLocal && <span className="mp-other-window-you">you</span>}
       </div>
       {player.bet > 0 && <div className="mp-slot-bet">${player.bet}</div>}
-      <div className="mp-other-cards">
-        {displayCards.length > 0
-          ? displayCards.map((c, i) => <Card key={`${i}-${c.value}${c.suit}`} card={c} />)
-          : [0, 1].map(i => <div key={i} className="card" style={{ visibility: 'hidden' }} />)
-        }
-      </div>
-      {displayCards.length > 0 && <HandTotal hand={isSplit ? player.hand : displayCards} />}
-      {resultLabel && <span className={`mp-slot-result-badge ${resultClass}`}>{resultLabel}</span>}
-      {!resultLabel && player.handStatus === 'busted' && <span className="mp-other-bust-tag">Bust!</span>}
-      {!resultLabel && player.handStatus === 'betting' && <span className="mp-other-status-tag">Betting…</span>}
+
+      {isSplit ? (
+        <>
+          {/* Hand 1 */}
+          <div className="mp-other-split-row">
+            <div className="mp-other-cards">
+              {player.hand1Completed.map((c, i) => (
+                <Card key={`h1-${i}-${c.value}${c.suit}`} card={c} />
+              ))}
+            </div>
+            <HandTotal hand={player.hand1Completed} />
+            {r1Label && <span className={`mp-slot-result-badge ${resultClass(player.result)}`}>{r1Label}</span>}
+          </div>
+          {/* Hand 2 */}
+          <div className="mp-other-split-row mp-other-split-row-2">
+            <div className="mp-other-cards">
+              {player.hand.length > 0
+                ? player.hand.map((c, i) => <Card key={`h2-${i}-${c.value}${c.suit}`} card={c} />)
+                : [0, 1].map(i => <div key={i} className="card" style={{ visibility: 'hidden' }} />)
+              }
+            </div>
+            {player.hand.length > 0 && <HandTotal hand={player.hand} />}
+            {r2Label && <span className={`mp-slot-result-badge ${resultClass(player.splitResult)}`}>{r2Label}</span>}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mp-other-cards">
+            {player.hand.length > 0
+              ? player.hand.map((c, i) => <Card key={`${i}-${c.value}${c.suit}`} card={c} />)
+              : [0, 1].map(i => <div key={i} className="card" style={{ visibility: 'hidden' }} />)
+            }
+          </div>
+          {player.hand.length > 0 && <HandTotal hand={player.hand} />}
+          {r1Label && <span className={`mp-slot-result-badge ${resultClass(player.result)}`}>{r1Label}</span>}
+          {!r1Label && player.handStatus === 'busted' && <span className="mp-other-bust-tag">Bust!</span>}
+          {!r1Label && player.handStatus === 'betting' && <span className="mp-other-status-tag">Betting…</span>}
+        </>
+      )}
     </div>
   );
 }

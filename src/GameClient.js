@@ -73,6 +73,13 @@ export default function GameClient() {
     }, 800)
   }, [session])
 
+  const handleReset = useCallback(async () => {
+    if (!session?.user?.id) return
+    try {
+      await fetch('/api/user/reset', { method: 'POST' })
+    } catch (e) { console.error('Reset failed:', e) }
+  }, [session])
+
   const openAuthModal = useCallback(() => {
     setGuestMode(false)
     setModalDismissed(false)
@@ -114,6 +121,7 @@ export default function GameClient() {
         <App
           initialStats={initialStats}
           onRoundEnd={handleRoundEnd}
+          onReset={handleReset}
           onShowAuth={openAuthModal}
           volumeOn={volumeOn}
           onVolumeChange={handleVolumeChange}

@@ -59,7 +59,7 @@ function findValidArrangement(deck, enabledTypes) {
   return deck;
 }
 
-function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, trainingHands: 0, trainingCorrect: 0 }, onRoundEnd, onShowAuth, volumeOn, onVolumeChange, onSwitchToMultiplayer }) {
+function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, trainingHands: 0, trainingCorrect: 0 }, onRoundEnd, onReset, onShowAuth, volumeOn, onVolumeChange, onSwitchToMultiplayer }) {
   const { data: session } = useSession();
   const {
     deck, setDeck,
@@ -684,7 +684,8 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
     setActionFeedback(null);
     setMenuOpen(false);
     setGamePhase('betting');
-  }, [setBankroll, setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
+    onReset?.();
+  }, [setBankroll, setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet, onReset]);
 
   useEffect(() => {
     setExpectedAction(null);

@@ -34,11 +34,13 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
   const [playerId, setPlayerId] = useState(null);
   const [lobbyError, setLobbyError] = useState(null);
   const connectedRef = useRef(false);
+  const playerIdRef = useRef(null);
 
   // Register all server→client event handlers BEFORE connecting
   useEffect(() => {
     on('lobby:created', ({ code, state, playerId: pid }) => {
       setPlayerId(pid);
+      playerIdRef.current = pid;
       setGameState(state);
       setLobbyError(null);
       setView('waiting');
@@ -46,6 +48,7 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
 
     on('lobby:joined', ({ state, playerId: pid }) => {
       setPlayerId(pid);
+      playerIdRef.current = pid;
       setGameState(state);
       setLobbyError(null);
       setView('waiting');
@@ -67,7 +70,13 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
     on('game:dealt', ({ state }) => setGameState(state));
     on('game:state', ({ state }) => setGameState(state));
     on('game:dealer-play', ({ state }) => setGameState(state));
-    on('game:round-end', ({ state }) => setGameState(state));
+    on('game:round-end', ({ state }) => {
+      setGameState(state);
+      const me = state.players.find(p => p.id === playerIdRef.current);
+      if (me?.forcedReset) {
+        fetch('/api/user/track-reset', { method: 'POST' });
+      }
+    });
     on('game:new-round', ({ state }) => setGameState(state));
 
     on('error', ({ message }) => setLobbyError(message));
