@@ -1,14 +1,16 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react';
+import PartySocket from 'partysocket';
 
 /**
- * Manages a WebSocket connection to the multiplayer game server.
+ * Manages a PartyKit WebSocket connection to the multiplayer game server.
  *
  * Usage:
  *   const { connect, disconnect, send, on, connected, error } = useMultiplayerSocket();
  *
- * Call `on(type, handler)` to register a message listener *before* calling `connect()`.
- * The handler map is kept in a ref so handlers can be updated without re-subscribing.
+ * Call `on(type, handler)` to register message listeners.
+ * Call `connect(roomCode)` to open a connection to a specific lobby room.
+ * PartySocket buffers messages sent before the connection opens — no need to wait.
  */
 export function useMultiplayerSocket() {
   const wsRef = useRef(null);
@@ -21,29 +23,31 @@ export function useMultiplayerSocket() {
   }, []);
 
   const send = useCallback((msg) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg));
-    }
+    // PartySocket buffers messages if not yet connected — safe to call immediately
+    wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  const connect = useCallback(() => {
+  const connect = useCallback((room) => {
     if (wsRef.current) wsRef.current.close();
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/ws`;
-    const ws = new WebSocket(url);
+    const ws = new PartySocket({
+      host: process.env.NEXT_PUBLIC_PARTYKIT_HOST,
+      room,
+    });
     wsRef.current = ws;
 
-    ws.onopen = () => { setConnected(true); setError(null); };
-    ws.onclose = () => { setConnected(false); };
-    ws.onerror = () => { setError('Connection failed. Is the server running?'); setConnected(false); };
-
-    ws.onmessage = (e) => {
+    ws.addEventListener('open', () => { setConnected(true); setError(null); });
+    ws.addEventListener('close', () => { setConnected(false); });
+    ws.addEventListener('error', () => {
+      setError('Connection failed. Is the server running?');
+      setConnected(false);
+    });
+    ws.addEventListener('message', (e) => {
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
       const handler = handlersRef.current[msg.type];
       if (handler) handler(msg);
-    };
+    });
 
     return ws;
   }, []);

@@ -14,6 +14,13 @@ function generateGuestName() {
   return `Guest_${suffix}`;
 }
 
+function generateLobbyCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
 /**
  * Top-level multiplayer component.
  *
@@ -33,16 +40,17 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
   const [gameState, setGameState] = useState(null);
   const [playerId, setPlayerId] = useState(null);
   const [lobbyError, setLobbyError] = useState(null);
-  const connectedRef = useRef(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const playerIdRef = useRef(null);
 
-  // Register all server→client event handlers BEFORE connecting
+  // Register all server→client event handlers once on mount
   useEffect(() => {
     on('lobby:created', ({ code, state, playerId: pid }) => {
       setPlayerId(pid);
       playerIdRef.current = pid;
       setGameState(state);
       setLobbyError(null);
+      setIsConnecting(false);
       setView('waiting');
     });
 
@@ -51,6 +59,7 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
       playerIdRef.current = pid;
       setGameState(state);
       setLobbyError(null);
+      setIsConnecting(false);
       setView('waiting');
     });
 
@@ -58,7 +67,6 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
 
     on('lobby:player-left', ({ state }) => {
       setGameState(state);
-      // If game is now in progress and there's only 1 player, return to waiting
       if (state.status === 'waiting') setView('waiting');
     });
 
@@ -79,48 +87,43 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
     });
     on('game:new-round', ({ state }) => setGameState(state));
 
-    on('error', ({ message }) => setLobbyError(message));
-
-    connect();
-    connectedRef.current = true;
+    on('error', ({ message }) => {
+      setLobbyError(message);
+      setIsConnecting(false);
+    });
 
     return () => disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateLobby = useCallback(() => {
     setLobbyError(null);
+    setIsConnecting(true);
+    const code = generateLobbyCode();
+    connect(code);
+    // PartySocket buffers the message until connection opens
     send({ type: 'lobby:create', name: playerName });
-  }, [send, playerName]);
+  }, [connect, send, playerName]);
 
   const handleJoinLobby = useCallback((code) => {
     setLobbyError(null);
-    send({ type: 'lobby:join', code: code.toUpperCase(), name: playerName });
-  }, [send, playerName]);
+    setIsConnecting(true);
+    connect(code.toUpperCase());
+    send({ type: 'lobby:join', name: playerName });
+  }, [connect, send, playerName]);
 
   const handleStartGame = useCallback(() => {
     send({ type: 'lobby:start' });
   }, [send]);
 
   const handleLeaveToLobby = useCallback(() => {
-    // Disconnect (closes the socket, server removes the player from lobby).
-    // Handlers already registered in useEffect remain in handlersRef,
-    // so a fresh connect() will work without re-registering.
     disconnect();
     setGameState(null);
     setPlayerId(null);
     setLobbyError(null);
+    setIsConnecting(false);
     setView('lobby');
-    // Give the socket a moment to close before re-connecting
-    setTimeout(() => connect(), 120);
-  }, [disconnect, connect]);
-
-  if (!connected && view === 'lobby' && !error) {
-    return (
-      <div className="mp-connecting">
-        <div className="mp-connecting-text">Connecting…</div>
-      </div>
-    );
-  }
+    // No reconnect needed — will connect to a new room when user creates/joins next
+  }, [disconnect]);
 
   if (error && view === 'lobby') {
     return (
@@ -139,7 +142,7 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
         onJoin={handleJoinLobby}
         onBack={onLeave}
         error={lobbyError}
-        connected={connected}
+        connected={!isConnecting}
       />
     );
   }

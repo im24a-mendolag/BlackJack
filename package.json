@@ -7,12 +7,13 @@
     "bcryptjs": "^3.0.3",
     "next": "^15.2.2",
     "next-auth": "^4.24.13",
+    "partysocket": "^1.0.3",
     "prisma": "^5.22.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "ws": "^8.19.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "partykit": "^0.0.115",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -22,9 +23,11 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "dev": "node server.js",
+    "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "node server.js",
-    "lint": "next lint"
+    "start": "next start",
+    "lint": "next lint",
+    "party:dev": "partykit dev",
+    "party:deploy": "partykit deploy"
   }
 }
