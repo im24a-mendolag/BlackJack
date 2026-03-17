@@ -93,6 +93,24 @@
   text-shadow: 0 0 30px rgba(245, 158, 11, 0.35);
 }
 
+.game-title-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 2em;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #f59e0b;
+  text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(245, 158, 11, 0.35);
+  transition: opacity 0.15s;
+}
+
+.game-title-btn:hover {
+  opacity: 0.75;
+}
+
 .game-hud {
   display: flex;
   gap: 0.9em;
@@ -579,6 +597,17 @@
   background: rgba(245, 158, 11, 0.18);
 }
 
+/* ── Green board (table + controls as one surface) ───── */
+
+.green-board {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #14532d;
+  background-image: radial-gradient(ellipse at 50% 30%, #166534 0%, #052e16 100%);
+  overflow: hidden;
+}
+
 /* ── Table (green felt) ──────────────────────────────── */
 
 .table-area {
@@ -588,8 +617,7 @@
   justify-content: space-between;
   align-items: center;
   position: relative;
-  background-color: #14532d;
-  background-image: radial-gradient(ellipse at 50% 40%, #166534 0%, #052e16 100%);
+  background: transparent;
   padding: 2.5em 1em;
   min-height: 0;
 }
@@ -797,8 +825,7 @@
 /* ── Controls Bar ────────────────────────────────────── */
 
 .controls-bar {
-  background-color: #0f0f1a;
-  border-top: 1px solid #1e1e30;
+  background: transparent;
   padding: 1em 2em;
   min-height: 200px;
   height: auto;
@@ -905,6 +932,11 @@ kbd.key-hint {
 
 @media (max-width: 929px) {
   .game-title {
+    font-size: 1.1em;
+    letter-spacing: 0.06em;
+  }
+
+  .game-title-btn {
     font-size: 1.1em;
     letter-spacing: 0.06em;
   }

@@ -1,8 +1,8 @@
 'use client'
 import React, { useEffect, useCallback, useState, useRef } from "react";
 import { useSession, signOut } from 'next-auth/react';
-import { DeckContext } from "./context/DeckContext";
-import { playSound, setVolumeEnabled, resumeAudio } from "./lib/sound";
+import { setVolumeEnabled } from "./lib/sound";
+import { useBlackjackGame } from "./hooks/useBlackjackGame";
 import PlayerHand from './components/PlayerHand';
 import DealerHand from './components/DealerHand';
 import PlayerActions from "./components/PlayerActions";
@@ -10,10 +10,6 @@ import BettingPanel from "./components/BettingPanel";
 import TrainingFeedback from "./components/TrainingFeedback";
 import ResultPanel from "./components/ResultPanel";
 import StatusBanner from "./components/StatusBanner";
-import checkWinner from "./logic/checkWinner";
-import getHandTotal from "./logic/getHandTotal";
-import drawCard from "./logic/drawCard";
-import { getBasicStrategyAction } from "./theory/basicStrategy";
 import StrategyTableModal from "./components/StrategyTableModal";
 import LeaderboardModal from "./components/LeaderboardModal";
 import TestDealPanel from "./components/TestDealPanel";
@@ -21,744 +17,88 @@ import Link from 'next/link';
 
 // gamePhase values: 'betting' | 'dealing' | 'player' | 'dealer' | 'pausing' | 'result'
 
-// Reshuffle when fewer than 25% of the 4-deck shoe remain (52 of 208 cards)
-const RESHUFFLE_THRESHOLD = Math.floor(4 * 52 * 0.25);
-
-function classifyHandType(c0, c2) {
-  if (c0.value === c2.value) return 'pair';
-  if (c0.value === 'A' || c2.value === 'A') return 'soft';
-  return 'hard';
-}
-
-function setupTestHand(deck, v1, v2) {
-  const d = [...deck];
-  // Move a v1 card to position 0 (player's first card)
-  const i1 = d.findIndex(c => c.value === v1);
-  if (i1 > 0) { const [c] = d.splice(i1, 1); d.unshift(c); }
-  // Move a v2 card to position 2 (player's second card), skipping positions 0 & 1
-  const i2 = d.findIndex((c, i) => c.value === v2 && i >= 2);
-  if (i2 > 2) { const [c] = d.splice(i2, 1); d.splice(2, 0, c); }
-  return d;
-}
-
-function findValidArrangement(deck, enabledTypes) {
-  if (enabledTypes.length === 0) return deck;
-  const n = deck.length;
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      if (i === j) continue;
-      if (enabledTypes.includes(classifyHandType(deck[i], deck[j]))) {
-        const d = [...deck];
-        [d[0], d[i]] = [d[i], d[0]];
-        const jAdj = j === 0 ? i : j;
-        [d[2], d[jAdj]] = [d[jAdj], d[2]];
-        return d;
-      }
-    }
-  }
-  return deck;
-}
-
-function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, trainingHands: 0, trainingCorrect: 0 }, onRoundEnd, onShowAuth, volumeOn, onVolumeChange }) {
+function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0, trainingHands: 0, trainingCorrect: 0 }, onRoundEnd, onReset, onShowAuth, volumeOn, onVolumeChange, onSwitchToMultiplayer }) {
   const { data: session } = useSession();
-  const {
-    deck, setDeck,
-    dealerHand, setDealerHand,
-    playerHand, setPlayerHand,
-    playerTurn, setPlayerTurn,
-    bankroll, setBankroll,
-    currentBet, setCurrentBet,
-  } = React.useContext(DeckContext);
 
-  const [gamePhase, setGamePhase] = useState('betting');
-  const [winner, setWinner] = useState(null);
-  const [resultAmount, setResultAmount] = useState(0);
-  const [resultMessage, setResultMessage] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [lastBetAmount, setLastBetAmount] = useState(0);
-
-  // Menu & settings state
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [trainingMode, setTrainingMode] = useState('off');
-  const [stats, setStats] = useState(initialStats);
-  const menuRef = useRef(null);
-  const bankrollRef = useRef(bankroll);
-  useEffect(() => { bankrollRef.current = bankroll; }, [bankroll]);
-
-  const initialTrainingRef = useRef({ hands: initialStats.trainingHands ?? 0, correct: initialStats.trainingCorrect ?? 0 });
-  const strategyStatsRef = useRef({ total: 0, correct: 0 });
-  const statsRef = useRef(stats);
-  useEffect(() => { statsRef.current = stats; }, [stats]);
-
-  // Sync volume state with the sound engine.
-  useEffect(() => { setVolumeEnabled(volumeOn); }, [volumeOn]);
-
-  // Training practice state
-  const [trainingSetup, setTrainingSetup] = useState(false);
+  // ── UI-only state ────────────────────────────────────────────────────────────
+  const [menuOpen, setMenuOpen]             = useState(false);
+  const [trainingMode, setTrainingMode]     = useState('off');
+  const [trainingSetup, setTrainingSetup]   = useState(false);
   const [practiceHardHands, setPracticeHardHands] = useState(true);
   const [practiceSoftHands, setPracticeSoftHands] = useState(true);
-  const [practicePairs, setPracticePairs] = useState(true);
-  const [strategyStats, setStrategyStats] = useState({ total: 0, correct: 0 });
-  const [expectedAction, setExpectedAction] = useState(null);
-  const [actionFeedback, setActionFeedback] = useState(null);
-  const [trainingFeedback, setTrainingFeedback] = useState(null);
+  const [practicePairs, setPracticePairs]         = useState(true);
   const [showStrategyTable, setShowStrategyTable] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showLeaderboard, setShowLeaderboard]     = useState(false);
+  const [testHand, setTestHand]             = useState(null);
+  const menuRef = useRef(null);
 
-  // Test deal state (freeplay only)
-  const [testHand, setTestHand] = useState(null); // { v1, v2, label } | null
+  // ── Sync volume ──────────────────────────────────────────────────────────────
+  useEffect(() => { setVolumeEnabled(volumeOn); }, [volumeOn]);
 
-  // Split state
-  const [splitHand2, setSplitHand2] = useState([]);                   // second hand (waiting to be played)
-  const [splitHand1Completed, setSplitHand1Completed] = useState([]); // first hand (done)
-  const [splitBet, setSplitBet] = useState(0);                        // original bet when split was made
-  const [splitHand1Bet, setSplitHand1Bet] = useState(0);              // actual bet for hand 1 (may be doubled)
-  const [splitResults, setSplitResults] = useState(null);             // {result1, result2, amount1, amount2}
-
-  // Prevents the game effect from re-entering during banner pauses.
-  const gameTransitionRef = useRef(false);
-
+  // ── Close menu on outside click ──────────────────────────────────────────────
   useEffect(() => {
     if (!menuOpen) return;
     const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
-  const suits = ["♠", "♥", "♦", "♣"];
-  const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-
-  const createDeck = (numDecks = 4) => {
-    const newDeck = [];
-    for (let i = 0; i < numDecks; i++) {
-      for (let suit of suits) {
-        for (let value of values) {
-          newDeck.push({ suit, value });
-        }
-      }
-    }
-    setDeck(newDeck.sort(() => Math.random() - 0.5));
-  };
-
-  useEffect(() => {
-    if (deck.length === 0) createDeck();
-  }, [deck.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const resolveRound = useCallback((playerH, dealerH, betAmount) => {
-    const result = checkWinner({ playerHand: playerH, dealerHand: dealerH });
-    setWinner(result);
-    const amount = betAmount != null ? betAmount : currentBet;
-    const isNaturalBlackjack = result === 'Player Wins' && playerH.length === 2 && getHandTotal(playerH) === 21;
-    let delta = 0;
-    if (trainingMode !== 'basic') {
-      if (isNaturalBlackjack) {
-        // Natural blackjack pays 3:2
-        delta = Math.floor(amount * 2.5);
-        setBankroll(prev => prev + delta);
-        setResultAmount(Math.floor(amount * 1.5));
-      } else if (result === 'Player Wins') {
-        delta = amount * 2;
-        setBankroll(prev => prev + delta);
-        setResultAmount(amount);
-      } else if (result === 'House Wins') {
-        setResultAmount(amount);
-      } else {
-        delta = amount;
-        setBankroll(prev => prev + delta);
-        setResultAmount(0);
-      }
-    }
-    setResultMessage(isNaturalBlackjack ? 'Blackjack!' : result);
-    const incomeDelta = trainingMode !== 'basic' ? delta - (betAmount ?? currentBet) : 0;
-    setStats(prev => {
-      const next = {
-        hands: prev.hands + 1,
-        wins: prev.wins + (result === 'Player Wins' ? 1 : 0),
-        losses: prev.losses + (result === 'House Wins' ? 1 : 0),
-        pushes: prev.pushes + (result === 'Push' ? 1 : 0),
-        totalIncome: prev.totalIncome + incomeDelta,
-        blackjacks: prev.blackjacks + (isNaturalBlackjack ? 1 : 0),
-      };
-      const s = strategyStatsRef.current;
-      const trainingStats = trainingMode === 'basic' ? {
-        trainingHands: initialTrainingRef.current.hands + s.total,
-        trainingCorrect: initialTrainingRef.current.correct + s.correct,
-      } : undefined;
-      onRoundEnd?.({ bankroll: bankrollRef.current + delta, stats: next, trainingStats });
-      return next;
-    });
-    return result;
-  }, [currentBet, setBankroll, trainingMode, onRoundEnd]);
-
-  // Ref always points to latest dealCards — used by effects to avoid stale closures
-  const dealCardsRef = useRef(null);
-  const trainingModeRef = useRef(trainingMode);
-  const handIdRef = useRef(0);
-
-  const cancelHand = useCallback(() => {
-    handIdRef.current += 1;
-    gameTransitionRef.current = false;
-    setPlayerHand([]);
-    setDealerHand([]);
-    setPlayerTurn(true);
-    setWinner(null);
-    setStatusMessage('');
-    setCurrentBet(0);
-    setSplitHand2([]);
-    setSplitHand1Completed([]);
-    setSplitBet(0);
-    setSplitHand1Bet(0);
-    setSplitResults(null);
-    setTrainingFeedback(null);
-    setExpectedAction(null);
-    setActionFeedback(null);
-    setGamePhase('betting');
-  }, [setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
-
-  const dealCards = useCallback((betAmount) => {
-    const handId = ++handIdRef.current;
-    resumeAudio();
-    gameTransitionRef.current = false;
-    setPlayerHand([]);
-    setDealerHand([]);
-    setLastBetAmount(betAmount);
-    if (trainingMode !== 'basic') setBankroll(prev => prev - betAmount);
-    setPlayerTurn(true);
-    setGamePhase('dealing');
-    setWinner(null);
-    setStatusMessage('');
-
-    // Reshuffle between hands if fewer than 25% of shoe remains
-    let workingDeck = deck;
-    if (trainingMode !== 'basic' && deck.length < RESHUFFLE_THRESHOLD) {
-      playSound('shuffle');
-      const newDeck = [];
-      for (let i = 0; i < 4; i++)
-        for (const suit of suits)
-          for (const value of values)
-            newDeck.push({ suit, value });
-      newDeck.sort(() => Math.random() - 0.5);
-      workingDeck = newDeck;
-      setDeck(newDeck);
-    }
-
-    if (trainingMode === 'basic') {
-      const enabledTypes = [
-        practiceHardHands && 'hard',
-        practiceSoftHands && 'soft',
-        practicePairs     && 'pair',
-      ].filter(Boolean);
-      workingDeck = findValidArrangement(deck, enabledTypes);
-    } else if (testHand) {
-      workingDeck = setupTestHand(deck, testHand.v1, testHand.v2);
-    }
-
-    const c0 = workingDeck[0], c1 = workingDeck[1], c2 = workingDeck[2], c3 = workingDeck[3];
-
-    setTimeout(() => {
-      if (handIdRef.current !== handId) return;
-      playSound('draw');
-      setPlayerHand([c0]);
-    }, 650);
-    setTimeout(() => {
-      if (handIdRef.current !== handId) return;
-      playSound('draw');
-      setDealerHand([c1]);
-    }, 1300);
-    setTimeout(() => {
-      if (handIdRef.current !== handId) return;
-      playSound('draw');
-      setPlayerHand([c0, c2]);
-    }, 1950);
-    setTimeout(() => {
-      if (handIdRef.current !== handId) return;
-      playSound('draw');
-      const finalPlayer = [c0, c2];
-      const finalDealer = [c1, c3];
-      setDealerHand(finalDealer);
-      setDeck(workingDeck.slice(4));
-
-      const playerTotal = getHandTotal(finalPlayer);
-      const dealerTotal = getHandTotal(finalDealer);
-
-      if (trainingMode === 'basic' && (playerTotal === 21 || dealerTotal === 21)) {
-        // Blackjack in training: no decision to make, skip straight to next hand
-        setGamePhase('betting');
-      } else if (playerTotal === 21 && dealerTotal === 21) {
-        setStatusMessage('Push! Both Blackjack!');
-        setGamePhase('pausing');
-        setTimeout(() => {
-          if (handIdRef.current !== handId) return;
-          setStatusMessage('');
-          resolveRound(finalPlayer, finalDealer, betAmount);
-          setGamePhase('result');
-        }, 1500);
-      } else if (dealerTotal === 21) {
-        setStatusMessage('Dealer Blackjack!');
-        playSound('bust');
-        setPlayerTurn(false);
-        setGamePhase('pausing');
-        setTimeout(() => {
-          if (handIdRef.current !== handId) return;
-          setStatusMessage('');
-          resolveRound(finalPlayer, finalDealer, betAmount);
-          setGamePhase('result');
-        }, 1500);
-      } else if (playerTotal === 21) {
-        setStatusMessage('Blackjack!');
-        playSound('win');
-        setPlayerTurn(false);
-        setGamePhase('pausing');
-        setTimeout(() => {
-          if (handIdRef.current !== handId) return;
-          setStatusMessage('');
-          resolveRound(finalPlayer, finalDealer, betAmount);
-          setGamePhase('result');
-        }, 1500);
-      } else {
-        setGamePhase('player');
-        // Set expected action synchronously (same batch as gamePhase) to avoid stale closure in handleActionValidation
-        if (trainingMode === 'basic') {
-          const canSplitNow = finalPlayer[0].value === finalPlayer[1].value;
-          setExpectedAction(getBasicStrategyAction(finalPlayer, finalDealer[1], true, canSplitNow));
-        }
-      }
-    }, 2600);
-  }, [deck, setDeck, setDealerHand, setPlayerHand, setPlayerTurn, setBankroll, resolveRound,
-      trainingMode, practiceHardHands, practiceSoftHands, practicePairs, testHand]);
-
-  // Keep refs current so effects can read latest values without stale closures
-  dealCardsRef.current = dealCards;
-  trainingModeRef.current = trainingMode;
-
-  const handleActionValidation = useCallback((action) => {
-    if (trainingMode !== 'basic' || !expectedAction) return;
-    const isCorrect = action === expectedAction;
-    playSound(isCorrect ? 'win' : 'bust');
-    const next = { total: strategyStatsRef.current.total + 1, correct: strategyStatsRef.current.correct + (isCorrect ? 1 : 0) };
-    strategyStatsRef.current = next;
-    setStrategyStats(next);
-    onRoundEnd?.({
-      bankroll: bankrollRef.current,
-      stats: statsRef.current,
-      trainingStats: {
-        trainingHands: initialTrainingRef.current.hands + next.total,
-        trainingCorrect: initialTrainingRef.current.correct + next.correct,
-      },
-    });
-    setTrainingFeedback({ correct: isCorrect, expected: expectedAction });
-    setGamePhase('training-result');
-  }, [trainingMode, expectedAction, onRoundEnd]);
-
-  const handleStand = useCallback(() => {
-    handleActionValidation('stand');
-    if (trainingMode === 'basic') return;
-    playSound('stand');
-    setTimeout(() => setPlayerTurn(false), 500);
-  }, [trainingMode, handleActionValidation, setPlayerTurn]);
-
-  const handleDouble = useCallback(() => {
-    if (playerHand.length !== 2 || (trainingMode !== 'basic' && currentBet > bankroll) || deck.length === 0) return;
-    handleActionValidation('double');
-    if (trainingMode === 'basic') return;
-    // Compute the new hand/deck now (pure), state updates come after the delay
-    const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
-    playSound('chip');
-    setBankroll(prev => prev - currentBet);
-    setCurrentBet(prev => prev * 2);
-    setTimeout(() => {
-      playSound('draw');
-      setTimeout(() => {
-        setPlayerHand(updatedHand);
-        setDeck(updatedDeck);
-      }, 500);
-      setTimeout(() => setPlayerTurn(false), 1150);
-    }, 500);
-  }, [playerHand, currentBet, bankroll, deck, setBankroll, setCurrentBet, setPlayerHand, setDeck, setPlayerTurn,
-      trainingMode, handleActionValidation]);
-
-  const handleSplit = useCallback(() => {
-    const isAlreadySplit = splitHand2.length > 0 || splitHand1Completed.length > 0;
-    if (
-      playerHand.length !== 2 ||
-      playerHand[0]?.value !== playerHand[1]?.value ||
-      isAlreadySplit ||
-      deck.length < 2 ||
-      (trainingMode !== 'basic' && currentBet > bankroll)
-    ) return;
-
-    handleActionValidation('split');
-    if (trainingMode === 'basic') return;
-    const [card1, card2] = playerHand;
-    const newCard1 = deck[0];
-    const newCard2 = deck[1];
-    playSound('chip');
-    setBankroll(prev => prev - currentBet);
-    setSplitBet(currentBet);
-    setDeck(prev => prev.slice(2));
-    setTimeout(() => {
-      setPlayerHand([card1]);
-      setSplitHand2([card2]);
-      setTimeout(() => { playSound('draw'); setPlayerHand([card1, newCard1]); }, 650);
-      setTimeout(() => { playSound('draw'); setSplitHand2([card2, newCard2]); }, 1300);
-    }, 500);
-  }, [playerHand, splitHand2, splitHand1Completed, currentBet, bankroll, deck, setBankroll, setDeck, setPlayerHand,
-      trainingMode, handleActionValidation]);
-
-  // Game logic: player bust/21 detection + dealer auto-play
-  useEffect(() => {
-    if (playerHand.length === 0 || dealerHand.length === 0) return;
-    if (gameTransitionRef.current) return;
-    if (gamePhase === 'training-result') return;
-    const handId = handIdRef.current;
-
-    // Player stood → transition to hand 2 (split) or go to dealer
-    if (gamePhase === 'player' && !playerTurn) {
-      if (splitHand2.length > 0) {
-        // Finished hand 1, move to hand 2
-        setSplitHand1Completed(playerHand.slice());
-        setSplitHand1Bet(currentBet);
-        setCurrentBet(splitBet);
-        setPlayerHand(splitHand2);
-        setSplitHand2([]);
-        setPlayerTurn(true);
-      } else {
-        const playerTotal = getHandTotal(playerHand);
-        if (playerTotal <= 21) {
-          setGamePhase('dealer');
-        } else {
-          // Busted after double down (playerTurn already false)
-          gameTransitionRef.current = true;
-          const ph = playerHand.slice();
-          const dh = dealerHand.slice();
-          const isInSplitHand2 = splitHand1Completed.length > 0;
-          setTimeout(() => {
-            if (handIdRef.current !== handId) return;
-            setStatusMessage('Bust!');
-            playSound('bust');
-            setTimeout(() => {
-              if (handIdRef.current !== handId) return;
-              setStatusMessage('');
-              if (isInSplitHand2) {
-                gameTransitionRef.current = false;
-                setGamePhase('dealer');
-              } else {
-                resolveRound(ph, dh);
-                setGamePhase('result');
-              }
-            }, 1500);
-          }, 600);
-        }
-      }
-      return;
-    }
-
-    // Player bust or 21
-    if (gamePhase === 'player' && playerTurn) {
-      const playerTotal = getHandTotal(playerHand);
-
-      if (playerTotal > 21) {
-        gameTransitionRef.current = true;
-        const ph = playerHand.slice();
-        const dh = dealerHand.slice();
-        const isSplitHand1 = splitHand2.length > 0;
-        const isInSplitHand2 = splitHand1Completed.length > 0;
-        const hand2Snap = splitHand2.slice();
-        const bet1Snap = currentBet;
-        const splitBetSnap = splitBet;
-
-        // Delay setPlayerTurn(false) so the bust card's flip animation (600ms)
-        // finishes before the dealer hole card reveal animation starts.
-        setTimeout(() => {
-          if (handIdRef.current !== handId) return;
-          setPlayerTurn(false);
-          setStatusMessage('Bust!');
-          playSound('bust');
-          setTimeout(() => {
-            if (handIdRef.current !== handId) return;
-            setStatusMessage('');
-            if (isSplitHand1) {
-              // Hand 1 busted, transition to hand 2
-              setSplitHand1Completed(ph);
-              setSplitHand1Bet(bet1Snap);
-              setCurrentBet(splitBetSnap);
-              setPlayerHand(hand2Snap);
-              setSplitHand2([]);
-              setPlayerTurn(true);
-              gameTransitionRef.current = false;
-            } else if (isInSplitHand2) {
-              // Hand 2 busted, proceed to dealer
-              gameTransitionRef.current = false;
-              setGamePhase('dealer');
-            } else {
-              // Normal bust
-              resolveRound(ph, dh);
-              setGamePhase('result');
-            }
-          }, 1500);
-        }, 650);
-
-      } else if (playerTotal === 21) {
-        const isInSplit = splitHand2.length > 0 || splitHand1Completed.length > 0;
-        if (playerHand.length === 2 && !isInSplit) {
-          // Natural blackjack fallback (not in split)
-          gameTransitionRef.current = true;
-          setPlayerTurn(false);
-          const ph = playerHand.slice();
-          const dh = dealerHand.slice();
-          setStatusMessage('Blackjack!');
-          setTimeout(() => {
-            if (handIdRef.current !== handId) return;
-            setStatusMessage('');
-            resolveRound(ph, dh);
-            setGamePhase('result');
-          }, 1500);
-        } else {
-          // Hit/split to 21: delay auto-stand so the card flip animation (600ms)
-          // finishes before the dealer hole card reveal animation starts.
-          setTimeout(() => { if (handIdRef.current !== handId) return; setPlayerTurn(false); }, 650);
-        }
-      }
-      return;
-    }
-
-    // Dealer auto-play
-    if (gamePhase === 'dealer') {
-      const dealerTotal = getHandTotal(dealerHand);
-      if (dealerTotal < 17 && deck.length > 0) {
-        const { updatedHand, updatedDeck } = drawCard({ hand: dealerHand, deck });
-        const timeout = setTimeout(() => {
-          if (handIdRef.current !== handId) return;
-          playSound('draw');
-          setDealerHand(updatedHand);
-          setDeck(updatedDeck);
-        }, 1000);
-        return () => clearTimeout(timeout);
-      } else {
-        // Dealer done drawing
-        gameTransitionRef.current = true;
-        const ph = playerHand.slice();
-        const dh = dealerHand.slice();
-        const ph1 = splitHand1Completed.slice();
-        const bet2 = currentBet;
-        const bet1 = splitHand1Bet;
-
-        setTimeout(() => {
-          if (handIdRef.current !== handId) return;
-          if (ph1.length > 0) {
-            // Split round: resolve both hands
-            const result1 = checkWinner({ playerHand: ph1, dealerHand: dh });
-            const result2 = checkWinner({ playerHand: ph, dealerHand: dh });
-            let splitDelta = 0;
-            if (trainingMode !== 'basic') {
-              if (result1 === 'Player Wins') { setBankroll(prev => prev + bet1 * 2); splitDelta += bet1 * 2; }
-              else if (result1 === 'Push') { setBankroll(prev => prev + bet1); splitDelta += bet1; }
-              if (result2 === 'Player Wins') { setBankroll(prev => prev + bet2 * 2); splitDelta += bet2 * 2; }
-              else if (result2 === 'Push') { setBankroll(prev => prev + bet2); splitDelta += bet2; }
-            }
-            const splitIncomeDelta = trainingMode !== 'basic' ? splitDelta - (bet1 + bet2) : 0;
-            setStats(prev => {
-              const next = {
-                hands: prev.hands + 2,
-                wins: prev.wins + (result1 === 'Player Wins' ? 1 : 0) + (result2 === 'Player Wins' ? 1 : 0),
-                losses: prev.losses + (result1 === 'House Wins' ? 1 : 0) + (result2 === 'House Wins' ? 1 : 0),
-                pushes: prev.pushes + (result1 === 'Push' ? 1 : 0) + (result2 === 'Push' ? 1 : 0),
-                totalIncome: prev.totalIncome + splitIncomeDelta,
-                blackjacks: prev.blackjacks,
-              };
-              const s = strategyStatsRef.current;
-              const trainingStats = trainingMode === 'basic' ? {
-                trainingHands: initialTrainingRef.current.hands + s.total,
-                trainingCorrect: initialTrainingRef.current.correct + s.correct,
-              } : undefined;
-              onRoundEnd?.({ bankroll: bankrollRef.current + splitDelta, stats: next, trainingStats });
-              return next;
-            });
-            setSplitResults({ result1, result2, amount1: bet1, amount2: bet2 });
-            setTimeout(() => { if (handIdRef.current !== handId) return; setGamePhase('result'); }, 600);
-          } else {
-            // Normal round
-            if (dealerTotal > 21) {
-              setStatusMessage('Dealer Busts!');
-              playSound('win');
-            } else {
-              const result = checkWinner({ playerHand: ph, dealerHand: dh });
-              if (result === 'Player Wins') {
-                setStatusMessage('You Win!');
-                playSound('win');
-              } else if (result === 'House Wins') {
-                setStatusMessage('Dealer Wins!');
-                playSound('bust');
-              } else {
-                setStatusMessage('Push!');
-                playSound('push');
-              }
-            }
-            setTimeout(() => {
-              if (handIdRef.current !== handId) return;
-              setStatusMessage('');
-              resolveRound(ph, dh);
-              setGamePhase('result');
-            }, 1500);
-          }
-        }, 600);
-      }
-    }
-  }, [gamePhase, playerTurn, playerHand, dealerHand, deck, resolveRound,
-      setDealerHand, setDeck, setPlayerTurn, setCurrentBet, setBankroll,
-      splitHand2, splitHand1Completed, splitBet, splitHand1Bet, currentBet, trainingMode, onRoundEnd]);
-
-  const handleResultsClose = useCallback(() => {
-    gameTransitionRef.current = false;
-    setPlayerHand([]);
-    setDealerHand([]);
-    setPlayerTurn(true);
-    setWinner(null);
-    setStatusMessage('');
-    setCurrentBet(0);
-    setSplitHand2([]);
-    setSplitHand1Completed([]);
-    setSplitBet(0);
-    setSplitHand1Bet(0);
-    setSplitResults(null);
-    setGamePhase('betting');
-  }, [setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
-
-  const hasSplitPair = (
-    playerHand.length === 2 &&
-    playerHand[0]?.value === playerHand[1]?.value &&
-    splitHand2.length === 0 &&
-    splitHand1Completed.length === 0
-  );
-  const canSplit = hasSplitPair && currentBet <= bankroll;
-  const canDouble = playerHand.length === 2 && currentBet <= bankroll;
-
-  // Hotkeys (W=Hit, S=Stand, D=Double, A=Split)
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      if (gamePhase !== 'player') return;
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
-
-      const key = event.key.toLowerCase();
-      switch (key) {
-        case 'w':
-          if (deck.length > 0) {
-            handleActionValidation('hit');
-            playSound('draw');
-            if (trainingMode !== 'basic') {
-              const { updatedHand, updatedDeck } = drawCard({ hand: playerHand, deck });
-              setTimeout(() => {
-                setPlayerHand(updatedHand);
-                setDeck(updatedDeck);
-              }, 500);
-            }
-          }
-          break;
-        case 's':
-          handleStand();
-          break;
-        case 'd':
-          handleDouble();
-          break;
-        case 'a':
-          handleSplit();
-          break;
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gamePhase, playerHand, deck, handleStand, handleDouble, handleSplit, setPlayerHand, setDeck, handleActionValidation]);
-
-  const handleReset = useCallback(() => {
-    gameTransitionRef.current = false;
-    setBankroll(1000);
-    setPlayerHand([]);
-    setDealerHand([]);
-    setPlayerTurn(true);
-    setWinner(null);
-    setStatusMessage('');
-    setCurrentBet(0);
-    setLastBetAmount(0);
-    setSplitHand2([]);
-    setSplitHand1Completed([]);
-    setSplitBet(0);
-    setSplitHand1Bet(0);
-    setSplitResults(null);
-    setStats({ hands: 0, wins: 0, losses: 0, pushes: 0, totalIncome: 0, blackjacks: 0 });
-    setStrategyStats({ total: 0, correct: 0 });
-    setExpectedAction(null);
-    setActionFeedback(null);
-    setMenuOpen(false);
-    setGamePhase('betting');
-  }, [setBankroll, setPlayerHand, setDealerHand, setPlayerTurn, setCurrentBet]);
-
-  useEffect(() => {
-    setExpectedAction(null);
-    setActionFeedback(null);
-    setTrainingFeedback(null);
-  }, [trainingMode]);
-
-  // Auto-advance from training-result: wait 1.8s then go back to betting (auto-deal fires below)
-  useEffect(() => {
-    if (gamePhase !== 'training-result') return;
-    const handId = handIdRef.current;
-    const t = setTimeout(() => {
-      if (handIdRef.current !== handId) return;
-      cancelHand();
-    }, 1800);
-    return () => clearTimeout(t);
-  }, [gamePhase, cancelHand]);
-
-  // Auto-deal next hand whenever training mode lands on betting phase
-  useEffect(() => {
-    if (trainingMode !== 'basic' || gamePhase !== 'betting' || trainingSetup) return;
-    const t = setTimeout(() => {
-      if (trainingModeRef.current !== 'basic') return;
-      dealCardsRef.current?.(lastBetAmount || 10);
-    }, 350);
-    return () => clearTimeout(t);
-  }, [trainingMode, gamePhase, lastBetAmount, trainingSetup]);
-
-  const isSplitActive = splitHand2.length > 0 || splitHand1Completed.length > 0;
-  const isOutOfMoney = gamePhase === 'betting' && bankroll < 10;
+  // ── Game logic (the heavy lifting) ──────────────────────────────────────────
+  const {
+    gamePhase, statusMessage, lastBetAmount,
+    resultMessage, resultAmount, splitResults,
+    strategyStats, trainingFeedback, actionFeedback,
+    isSplitActive, isOutOfMoney, hasSplitPair, canSplit, canDouble,
+    splitHand2, splitHand1Completed, splitBet, splitHand1Bet,
+    playerHand, dealerHand, bankroll, currentBet,
+    dealCards, cancelHand, handleDouble, handleSplit,
+    handleReset, handleResultsClose, handleActionValidation,
+  } = useBlackjackGame({
+    initialStats,
+    onRoundEnd,
+    onReset,
+    onMenuClose: useCallback(() => setMenuOpen(false), []),
+    trainingMode,
+    practiceHardHands,
+    practiceSoftHands,
+    practicePairs,
+    testHand,
+  });
 
   return (
     <div className="game-table">
+      {/* ── Header ── */}
       <header className="game-header">
         <div className="game-header-left">
-          <span className="game-title">Blackjack</span>
+          <a href="/" className="game-title">Blackjack</a>
           <nav className="game-nav">
             {[
-              ['off',   'Singleplayer', false],
-              ['multi', 'Multiplayer',  true],
-              ['basic', 'Training',     false],
-            ].map(([val, label, soon]) => (
+              ['off',   'Singleplayer'],
+              ['basic', 'Training'],
+            ].map(([val, label]) => (
               <button
                 key={val}
-                className={`nav-btn${trainingMode === val ? ' nav-btn-active' : ''}${soon ? ' nav-btn-soon' : ''}`}
-                disabled={soon}
+                className={`nav-btn${trainingMode === val ? ' nav-btn-active' : ''}`}
                 onClick={() => {
-                  if (soon || val === trainingMode) return;
+                  if (val === trainingMode) return;
                   if (gamePhase !== 'betting') cancelHand();
                   setTrainingMode(val);
                   if (val === 'basic') setTrainingSetup(true);
                 }}
               >
-                {label}{soon && <span className="soon-badge">Soon</span>}
+                {label}
               </button>
             ))}
+            <button
+              className="nav-btn"
+              onClick={() => { if (gamePhase !== 'betting') cancelHand(); onSwitchToMultiplayer?.(); }}
+            >
+              Multiplayer
+            </button>
           </nav>
-          <button
-            className="nav-btn nav-btn-highlight"
-            onClick={() => setShowLeaderboard(true)}
-          >
+          <button className="nav-btn nav-btn-highlight" onClick={() => setShowLeaderboard(true)}>
             Leaderboard
           </button>
         </div>
@@ -767,202 +107,201 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
             <Link href="/profile" className="hud-item hud-user hud-user-link">{session.user.username}</Link>
           )}
           {trainingMode !== 'basic' && <span className="hud-item">Bankroll: ${bankroll}</span>}
-          {trainingMode !== 'basic' && currentBet > 0 && <span className="hud-item hud-bet">Bet: ${isSplitActive ? (splitHand1Completed.length > 0 ? splitHand1Bet : splitBet) + currentBet : currentBet}</span>}
-          <div className="menu-container" ref={menuRef}>
-          <button
-            className={`settings-btn${menuOpen ? ' settings-btn-open' : ''}`}
-            onClick={() => setMenuOpen(o => !o)}
-            aria-label="Settings"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </button>
-          {menuOpen && (
-            <div className="menu-panel">
-              <div className="menu-row">
-                <span className="menu-label">Volume</span>
-                <button
-                  className={`menu-toggle${volumeOn ? ' menu-toggle-on' : ''}`}
-                  onClick={() => onVolumeChange(!volumeOn)}
-                >
-                  {volumeOn ? 'On' : 'Off'}
-                </button>
-              </div>
-              {!session?.user && onShowAuth && (
-                <>
-                  <div className="menu-divider" />
-                  <button
-                    className="menu-auth-btn"
-                    onClick={() => { setMenuOpen(false); onShowAuth(); }}
-                  >
-                    Sign In / Register
-                  </button>
-                </>
-              )}
-              {session?.user && (
-                <>
-                  <div className="menu-divider" />
-                  <button
-                    className="menu-logout-btn"
-                    onClick={() => { setMenuOpen(false); signOut(); }}
-                  >
-                    Sign Out
-                  </button>
-                </>
-              )}
-            </div>
+          {trainingMode !== 'basic' && currentBet > 0 && (
+            <span className="hud-item hud-bet">
+              Bet: ${isSplitActive ? (splitHand1Completed.length > 0 ? splitHand1Bet : splitBet) + currentBet : currentBet}
+            </span>
           )}
+          <div className="menu-container" ref={menuRef}>
+            <button
+              className={`settings-btn${menuOpen ? ' settings-btn-open' : ''}`}
+              onClick={() => setMenuOpen(o => !o)}
+              aria-label="Settings"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="menu-panel">
+                <div className="menu-row">
+                  <span className="menu-label">Volume</span>
+                  <button
+                    className={`menu-toggle${volumeOn ? ' menu-toggle-on' : ''}`}
+                    onClick={() => onVolumeChange(!volumeOn)}
+                  >
+                    {volumeOn ? 'On' : 'Off'}
+                  </button>
+                </div>
+                {!session?.user && onShowAuth && (
+                  <>
+                    <div className="menu-divider" />
+                    <button className="menu-auth-btn" onClick={() => { setMenuOpen(false); onShowAuth(); }}>
+                      Sign In / Register
+                    </button>
+                  </>
+                )}
+                {session?.user && (
+                  <>
+                    <div className="menu-divider" />
+                    <button className="menu-logout-btn" onClick={() => { setMenuOpen(false); signOut(); }}>
+                      Sign Out
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <div className="table-area">
-        <div className="table-rules">
-          <span>Blackjack Pays 3 to 2</span>
-          <span className="table-rules-divider">·</span>
-          <span>Dealer Stands Soft 17</span>
-          <span className="table-rules-divider">·</span>
-          <span>4 Decks</span>
-        </div>
-        {trainingMode === 'basic' && (
-          trainingSetup ? (
-            <div className="training-setup-overlay">
-              <div className="training-setup-card">
-                <h2 className="training-setup-title">Training Setup</h2>
-                <p className="training-setup-subtitle">Select which hand types to practice</p>
-                <div className="training-setup-checks">
-                  {[
-                    ['Hard Hands', practiceHardHands, setPracticeHardHands],
-                    ['Soft Hands', practiceSoftHands, setPracticeSoftHands],
-                    ['Pairs',      practicePairs,      setPracticePairs],
-                  ].map(([label, checked, setter]) => (
-                    <label key={label} className="training-setup-check">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={e => setter(e.target.checked)}
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
+      {/* ── Board ── */}
+      <div className="green-board">
+        <div className="table-area">
+          <div className="table-rules">
+            <span>Blackjack Pays 3 to 2</span>
+            <span className="table-rules-divider">·</span>
+            <span>Dealer Stands Soft 17</span>
+            <span className="table-rules-divider">·</span>
+            <span>4 Decks</span>
+          </div>
+
+          {/* Training setup / controls */}
+          {trainingMode === 'basic' && (
+            trainingSetup ? (
+              <div className="training-setup-overlay">
+                <div className="training-setup-card">
+                  <h2 className="training-setup-title">Training Setup</h2>
+                  <p className="training-setup-subtitle">Select which hand types to practice</p>
+                  <div className="training-setup-checks">
+                    {[
+                      ['Hard Hands', practiceHardHands, setPracticeHardHands],
+                      ['Soft Hands', practiceSoftHands, setPracticeSoftHands],
+                      ['Pairs',      practicePairs,      setPracticePairs],
+                    ].map(([label, checked, setter]) => (
+                      <label key={label} className="training-setup-check">
+                        <input type="checkbox" checked={checked} onChange={e => setter(e.target.checked)} />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    className="training-setup-start-btn"
+                    disabled={![practiceHardHands, practiceSoftHands, practicePairs].some(Boolean)}
+                    onClick={() => setTrainingSetup(false)}
+                  >
+                    Start Training
+                  </button>
                 </div>
-                <button
-                  className="training-setup-start-btn"
-                  disabled={![practiceHardHands, practiceSoftHands, practicePairs].some(Boolean)}
-                  onClick={() => setTrainingSetup(false)}
-                >
-                  Start Training
-                </button>
               </div>
+            ) : (
+              <div className="training-controls-left">
+                <div className="training-hand-panel strategy-table-panel">
+                  <button
+                    className="training-hand-btn"
+                    onClick={() => { if (gamePhase !== 'betting') cancelHand(); setTrainingSetup(true); }}
+                  >
+                    Reconfigure
+                  </button>
+                  <button
+                    className="training-hand-btn strategy-table-btn"
+                    onClick={() => setShowStrategyTable(true)}
+                  >
+                    Strategy Table
+                  </button>
+                </div>
+                <div className="training-session-stats">
+                  <div className="training-session-stat-row">
+                    <span>Hands</span>
+                    <span className="training-session-stat-value">{strategyStats.total}</span>
+                  </div>
+                  <div className="training-session-stat-row training-session-stat-divider" />
+                  <div className="training-session-stat-row">
+                    <span>Correct</span>
+                    {(() => {
+                      const pct = strategyStats.total > 0 ? Math.round(strategyStats.correct / strategyStats.total * 100) : null;
+                      const cls = pct === null ? 'training-session-stat-value' : pct >= 70 ? 'training-session-stat-value stat-win' : pct < 50 ? 'training-session-stat-value stat-loss' : 'training-session-stat-value';
+                      return <span className={cls}>{pct !== null ? `${pct}%` : '—'}</span>;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )
+          )}
+
+          <DealerHand hand={dealerHand} gamePhase={gamePhase} />
+          {statusMessage && <StatusBanner message={statusMessage} />}
+
+          {isSplitActive ? (
+            <div className="split-hands-row">
+              <PlayerHand
+                hand={splitHand1Completed.length > 0 ? splitHand1Completed : playerHand}
+                label="Hand 1"
+                isActive={splitHand2.length > 0}
+              />
+              <PlayerHand
+                hand={splitHand1Completed.length > 0 ? playerHand : splitHand2}
+                label="Hand 2"
+                isActive={splitHand1Completed.length > 0}
+              />
             </div>
           ) : (
-            <div className="training-controls-left">
-              <div className="training-hand-panel strategy-table-panel">
-                <button
-                  className="training-hand-btn"
-                  onClick={() => { if (gamePhase !== 'betting') cancelHand(); setTrainingSetup(true); }}
-                >
-                  Reconfigure
-                </button>
-                <button
-                  className="training-hand-btn strategy-table-btn"
-                  onClick={() => setShowStrategyTable(true)}
-                >
-                  Strategy Table
-                </button>
-              </div>
-              <div className="training-session-stats">
-                <div className="training-session-stat-row">
-                  <span>Hands</span>
-                  <span className="training-session-stat-value">{strategyStats.total}</span>
-                </div>
-                <div className="training-session-stat-row training-session-stat-divider" />
-                <div className="training-session-stat-row">
-                  <span>Correct</span>
-                  {(() => {
-                    const pct = strategyStats.total > 0 ? Math.round(strategyStats.correct / strategyStats.total * 100) : null;
-                    const cls = pct === null ? 'training-session-stat-value' : pct >= 70 ? 'training-session-stat-value stat-win' : pct < 50 ? 'training-session-stat-value stat-loss' : 'training-session-stat-value';
-                    return <span className={cls}>{pct !== null ? `${pct}%` : '—'}</span>;
-                  })()}
-                </div>
-              </div>
-            </div>
-          )
-        )}
-<DealerHand hand={dealerHand} gamePhase={gamePhase} />
-        {statusMessage && <StatusBanner message={statusMessage} />}
-        {isSplitActive ? (
-          <div className="split-hands-row">
-            <PlayerHand
-              hand={splitHand1Completed.length > 0 ? splitHand1Completed : playerHand}
-              label="Hand 1"
-              isActive={splitHand2.length > 0}
-            />
-            <PlayerHand
-              hand={splitHand1Completed.length > 0 ? playerHand : splitHand2}
-              label="Hand 2"
-              isActive={splitHand1Completed.length > 0}
-            />
-          </div>
-        ) : (
-          <PlayerHand hand={playerHand} />
-        )}
-      </div>
+            <PlayerHand hand={playerHand} />
+          )}
+        </div>
 
-      <div className="controls-bar">
-        {gamePhase === 'betting' && trainingMode !== 'basic' && (
-          <div className="betting-controls">
-            {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
-              <TestDealPanel testHand={testHand} onSelect={setTestHand} />
-            )}
-            <BettingPanel onDeal={dealCards} defaultBet={lastBetAmount} />
-          </div>
-        )}
-        {gamePhase === 'player' && !statusMessage && (
-          <PlayerActions
-            hasSplitPair={hasSplitPair}
-            canSplit={canSplit}
-            canDouble={canDouble}
-            onStand={trainingMode !== 'basic' ? handleStand : undefined}
-            onDouble={handleDouble}
-            onSplit={handleSplit}
-            onValidate={trainingMode === 'basic' ? handleActionValidation : undefined}
-            actionFeedback={actionFeedback}
-          />
-        )}
-        {gamePhase === 'training-result' && trainingFeedback && (
-          <TrainingFeedback feedback={trainingFeedback} onSkip={cancelHand} />
-        )}
-        {gamePhase === 'result' && trainingMode !== 'basic' && (
-          <ResultPanel
-            result={resultMessage}
-            amount={resultAmount}
-            splitResults={splitResults}
-            onNext={handleResultsClose}
-          />
-        )}
-        {(gamePhase === 'dealing' || gamePhase === 'dealer' || gamePhase === 'pausing' || gamePhase === 'betting' && trainingMode === 'basic' || (gamePhase === 'player' && statusMessage)) && (
-          <div className="waiting-indicator">
-            <span className="waiting-dots">• • •</span>
-          </div>
-        )}
-      </div>
-      {showStrategyTable && (
-        <StrategyTableModal onClose={() => setShowStrategyTable(false)} />
-      )}
-      {showLeaderboard && (
-        <LeaderboardModal onClose={() => setShowLeaderboard(false)} />
-      )}
+        {/* ── Controls bar ── */}
+        <div className="controls-bar">
+          {gamePhase === 'betting' && trainingMode !== 'basic' && (
+            <div className="betting-controls">
+              {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
+                <TestDealPanel testHand={testHand} onSelect={setTestHand} />
+              )}
+              <BettingPanel onDeal={dealCards} defaultBet={lastBetAmount} />
+            </div>
+          )}
+          {gamePhase === 'player' && !statusMessage && (
+            <PlayerActions
+              hasSplitPair={hasSplitPair}
+              canSplit={canSplit}
+              canDouble={canDouble}
+              onDouble={handleDouble}
+              onSplit={handleSplit}
+              onValidate={trainingMode === 'basic' ? handleActionValidation : undefined}
+              actionFeedback={actionFeedback}
+            />
+          )}
+          {gamePhase === 'training-result' && trainingFeedback && (
+            <TrainingFeedback feedback={trainingFeedback} onSkip={cancelHand} />
+          )}
+          {gamePhase === 'result' && trainingMode !== 'basic' && (
+            <ResultPanel
+              result={resultMessage}
+              amount={resultAmount}
+              splitResults={splitResults}
+              onNext={handleResultsClose}
+            />
+          )}
+          {(gamePhase === 'dealing' || gamePhase === 'dealer' || gamePhase === 'pausing' ||
+            (gamePhase === 'betting' && trainingMode === 'basic') ||
+            (gamePhase === 'player' && statusMessage)) && (
+            <div className="waiting-indicator">
+              <span className="waiting-dots">• • •</span>
+            </div>
+          )}
+        </div>
+      </div>{/* green-board */}
+
+      {/* ── Modals ── */}
+      {showStrategyTable && <StrategyTableModal onClose={() => setShowStrategyTable(false)} />}
+      {showLeaderboard   && <LeaderboardModal   onClose={() => setShowLeaderboard(false)}   />}
       {isOutOfMoney && trainingMode !== 'basic' && (
         <div className="broke-overlay">
           <div className="broke-modal">
             <h2 className="broke-title">You're broke!</h2>
             <p className="broke-subtitle">Not enough to place a bet.</p>
-            <button className="broke-reset-btn" onClick={handleReset}>
-              Reset
-            </button>
+            <button className="broke-reset-btn" onClick={handleReset}>Reset</button>
           </div>
         </div>
       )}

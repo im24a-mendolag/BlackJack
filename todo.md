@@ -5,6 +5,8 @@
 [ ] - Multiplayer
 
 ## Planned
+[ ] - Refractor App.js
+[ ] - Tests
 [ ] - Multiplayer Chat
 [ ] - Mutliplayer statistics
 [ ] - Enhanced Training statistics
