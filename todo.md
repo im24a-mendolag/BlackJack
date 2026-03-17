@@ -1,8 +1,7 @@
 # Blackjack — TODO
 
 ## Planned
-[ ] - Tests
-[ ] - Reset below 10 dollars
+
 [ ] - Handle Multiplayer loosing -> quit / spectating
 [ ] - Ui redo -> watch others do their turn / outcome msg
 [ ] - Joining / Rejoining ongoing multiplayer lobbies
