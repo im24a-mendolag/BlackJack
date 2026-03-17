@@ -108,6 +108,17 @@
 .mp-input::placeholder { color: rgba(255,255,255,0.22); }
 .mp-input:focus { border-color: rgba(245,158,11,0.6); }
 
+.mp-name-display {
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #f8fafc;
+  font-size: 1em;
+  font-weight: 700;
+  padding: 0.6em 1em;
+  letter-spacing: 0.02em;
+}
+
 .mp-input-code {
   text-align: center;
   font-size: 1.6em;
@@ -360,6 +371,141 @@
   animation: waitingPulse 1.4s ease-in-out infinite;
 }
 
+/* ── 3-column board layout ────────────────────────────── */
+
+.mp-board-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* Left sidebar */
+.mp-sidebar-left {
+  width: 11em;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  padding: 1em 0.75em;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.18);
+}
+
+.mp-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.mp-sidebar-label {
+  font-size: 0.68em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+}
+
+.mp-sidebar-code {
+  font-size: 1.6em;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: #f59e0b;
+  text-shadow: 0 0 14px rgba(245,158,11,0.3);
+}
+
+.mp-sidebar-round {
+  font-size: 0.72em;
+  color: rgba(255,255,255,0.35);
+  font-weight: 600;
+}
+
+.mp-sidebar-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+  width: 100%;
+}
+
+.mp-sidebar-leaderboard {
+  align-items: stretch;
+  gap: 0.2em;
+}
+
+.mp-lb-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.3em 0.4em;
+  border-radius: 7px;
+  font-size: 0.75em;
+  background: rgba(255,255,255,0.03);
+}
+
+.mp-lb-row-you {
+}
+
+.mp-lb-rank {
+  font-size: 0.8em;
+  color: rgba(255,255,255,0.28);
+  font-weight: 700;
+  min-width: 1em;
+  text-align: center;
+}
+
+.mp-lb-name {
+  flex: 1;
+  font-weight: 700;
+  color: rgba(255,255,255,0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-lb-bankroll {
+  font-weight: 800;
+  color: #f59e0b;
+  white-space: nowrap;
+}
+
+.mp-lb-you {
+  font-size: 0.7em;
+  font-weight: 800;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.15);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Center column: table area + controls */
+.mp-center-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Right sidebar: other player windows stacked */
+.mp-sidebar-right {
+  width: 12em;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.8em 0.6em;
+  border-left: 1px solid rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.18);
+  overflow-y: auto;
+}
+
+/* Hide right sidebar when empty */
+.mp-sidebar-right:empty {
+  display: none;
+}
+
 /* ── Game table overrides ─────────────────────────────── */
 
 .mp-table-area {
@@ -370,69 +516,130 @@
   flex-shrink: 0;
 }
 
-/* ── Player slots row ─────────────────────────────────── */
+/* ── Local player (full-size, mirrors singleplayer) ──────── */
 
-.mp-players-row {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 1.2em;
-  width: 100%;
-  padding: 0 1em;
-  box-sizing: border-box;
+.mp-local-hand {
+  flex-shrink: 0;
 }
 
-.mp-player-slot {
-  flex: 1;
-  max-width: 300px;
-  min-width: 0;
+.mp-local-split-row {
+  display: flex;
+  gap: 2em;
+  justify-content: center;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.mp-local-result {
+  font-size: 0.85em;
+  font-weight: 800;
+  border-radius: 100px;
+  padding: 0.15em 0.7em;
+}
+
+.mp-local-result-win  { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.4); }
+.mp-local-result-lose { background: rgba(239,68,68,0.13);  color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
+.mp-local-result-push { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.35); }
+
+/* Fixed-size window for each other player */
+.mp-other-window {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5em;
-  padding: 0.9em 0.7em 0.75em;
-  border-radius: 14px;
-  border: 1.5px solid rgba(255,255,255,0.07);
-  background: rgba(0,0,0,0.35);
-  backdrop-filter: blur(6px);
-  transition: opacity 0.3s, border-color 0.3s, box-shadow 0.3s;
+  gap: 0.22em;
+  padding: 0.4em 0.5em 0.45em;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.32);
   position: relative;
+  width: 100%;      /* fills the sidebar width */
+  flex-shrink: 0;
+  transition: border-color 0.25s, opacity 0.25s, background 0.25s;
 }
 
-.mp-player-slot-active {
+.mp-other-window-local {
+  border-color: rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.05);
+}
+
+.mp-other-window-active {
   border-color: rgba(34,197,94,0.55);
-  background: rgba(34,197,94,0.06);
-  box-shadow: 0 0 0 2px rgba(34,197,94,0.2), 0 8px 30px rgba(0,0,0,0.4);
+  background: rgba(34,197,94,0.07);
 }
 
-.mp-player-slot-local {
-  border-color: rgba(245,158,11,0.35);
+.mp-other-window-done {
+  opacity: 0.42;
 }
 
-.mp-player-slot-local.mp-player-slot-active {
-  border-color: rgba(34,197,94,0.7);
-}
-
-.mp-player-slot-dim {
-  opacity: 0.5;
-}
-
-.mp-player-slot-empty {
-  border-style: dashed;
-  opacity: 0.2;
-  pointer-events: none;
-  min-height: 120px;
-}
-
-/* Slot internal elements */
-
-.mp-slot-header {
+.mp-other-window-name {
+  font-size: 0.68em;
+  font-weight: 800;
+  color: rgba(255,255,255,0.75);
+  max-width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 0.4em;
+  gap: 0.3em;
+  min-width: 0;
 }
+
+.mp-other-window-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.mp-other-window-you {
+  font-size: 0.75em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.4);
+  border-radius: 100px;
+  padding: 0.05em 0.4em;
+  flex-shrink: 0;
+}
+
+/* Tiny cards inside other-player windows */
+.mp-other-window .card {
+  width: 2em;
+  height: 2.85em;
+  padding: 0.08em 0.1em;
+}
+
+.mp-other-window .card-corner-value { font-size: 0.62em; }
+.mp-other-window .card-center-suit  { font-size: 0.95em; }
+
+.mp-other-window .hand-total {
+  font-size: 0.65em;
+  padding: 0.08em 0.35em;
+}
+
+/* Shared inner elements */
+.mp-other-cards {
+  display: flex;
+  gap: 0.18em;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mp-slot-result-badge {
+  font-size: 0.62em;
+  font-weight: 800;
+  border-radius: 100px;
+  padding: 0.1em 0.45em;
+}
+
+.mp-slot-result-win  { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.35); }
+.mp-slot-result-lose { background: rgba(239,68,68,0.13);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.mp-slot-result-push { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+
+.mp-other-bust-tag   { font-size: 0.62em; font-weight: 800; color: #f87171; }
+.mp-other-status-tag { font-size: 0.62em; color: rgba(245,158,11,0.6); animation: waitingPulse 1.4s ease-in-out infinite; }
+
+/* ── Legacy slot styles (kept for result rows etc) ─────── */
 
 .mp-slot-name {
   font-size: 0.82em;

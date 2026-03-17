@@ -1,10 +1,18 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { useMultiplayerSocket } from './useMultiplayerSocket';
 import MultiplayerLobby from './MultiplayerLobby';
 import MultiplayerWaiting from './MultiplayerWaiting';
 import MultiplayerTable from './MultiplayerTable';
 import './Multiplayer.css';
+
+function generateGuestName() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let suffix = '';
+  for (let i = 0; i < 6; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+  return `Guest_${suffix}`;
+}
 
 /**
  * Top-level multiplayer component.
@@ -15,6 +23,11 @@ import './Multiplayer.css';
  *   'game'    → the actual game table
  */
 export default function MultiplayerClient({ onLeave, volumeOn }) {
+  const { data: session, status: authStatus } = useSession();
+  const playerName = useMemo(() => {
+    if (authStatus === 'authenticated' && session?.user?.username) return session.user.username;
+    return generateGuestName();
+  }, [authStatus, session?.user?.username]); // eslint-disable-line react-hooks/exhaustive-deps
   const { connect, disconnect, send, on, connected, error } = useMultiplayerSocket();
   const [view, setView] = useState('lobby');     // 'lobby' | 'waiting' | 'game'
   const [gameState, setGameState] = useState(null);
@@ -65,15 +78,15 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
     return () => disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleCreateLobby = useCallback((name) => {
+  const handleCreateLobby = useCallback(() => {
     setLobbyError(null);
-    send({ type: 'lobby:create', name });
-  }, [send]);
+    send({ type: 'lobby:create', name: playerName });
+  }, [send, playerName]);
 
-  const handleJoinLobby = useCallback((code, name) => {
+  const handleJoinLobby = useCallback((code) => {
     setLobbyError(null);
-    send({ type: 'lobby:join', code: code.toUpperCase(), name });
-  }, [send]);
+    send({ type: 'lobby:join', code: code.toUpperCase(), name: playerName });
+  }, [send, playerName]);
 
   const handleStartGame = useCallback(() => {
     send({ type: 'lobby:start' });
@@ -112,6 +125,7 @@ export default function MultiplayerClient({ onLeave, volumeOn }) {
   if (view === 'lobby') {
     return (
       <MultiplayerLobby
+        playerName={playerName}
         onCreate={handleCreateLobby}
         onJoin={handleJoinLobby}
         onBack={onLeave}

@@ -720,7 +720,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
     <div className="game-table">
       <header className="game-header">
         <div className="game-header-left">
-          <span className="game-title">Blackjack</span>
+          <a href="/" className="game-title">Blackjack</a>
           <nav className="game-nav">
             {[
               ['off',   'Singleplayer', false],
@@ -812,6 +812,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
         </div>
       </header>
 
+      <div className="green-board">
       <div className="table-area">
         <div className="table-rules">
           <span>Blackjack Pays 3 to 2</span>
@@ -942,6 +943,7 @@ function App({ initialStats = { hands: 0, wins: 0, losses: 0, pushes: 0, totalIn
           </div>
         )}
       </div>
+      </div>{/* green-board */}
       {showStrategyTable && (
         <StrategyTableModal onClose={() => setShowStrategyTable(false)} />
       )}

@@ -27,10 +27,15 @@
   justify-content: center;
 }
 
+/*
+ * Poker chip design:
+ *   layer 1 (bottom): repeating-conic-gradient  → alternating edge segments
+ *   layer 2 (top):    radial-gradient            → solid center disc, leaves rim as segments
+ *   border:           outer ring
+ *   outline:          inner ring (negative offset)
+ *   box-shadow inset: gloss highlight
+ */
 .chip-button {
-  background: radial-gradient(circle at 38% 32%, #2d9e3a, #14532d);
-  color: #fff;
-  border: 3px solid #22c55e;
   border-radius: 50%;
   width: 4.4em;
   height: 4.4em;
@@ -41,15 +46,73 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  outline: 2px dashed rgba(34, 197, 94, 0.35);
-  outline-offset: 3px;
+  border-style: solid;
+  border-width: 5px;
+  outline: none;
+}
+
+/* $10 — red */
+.chip-row .chip-button:nth-child(1) {
+  background: radial-gradient(circle, #9b0000 0%, #6b0000 100%);
+  border-color: #d42020;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.chip-row .chip-button:nth-child(1):hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(0,0,0,0.5), 0 0 0 3px rgba(212,32,32,0.35);
+}
+
+/* $25 — green */
+.chip-row .chip-button:nth-child(2) {
+  background: radial-gradient(circle, #096b09 0%, #044004 100%);
+  border-color: #1aaa1a;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.chip-row .chip-button:nth-child(2):hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(0,0,0,0.5), 0 0 0 3px rgba(26,170,26,0.35);
+}
+
+/* $100 — blue */
+.chip-row .chip-button:nth-child(3) {
+  background: radial-gradient(circle, #0d2e8b 0%, #081a55 100%);
+  border-color: #1e60d8;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.chip-row .chip-button:nth-child(3):hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(0,0,0,0.55), 0 0 0 3px rgba(30,96,216,0.35);
+}
+
+/* $500 — black */
+.chip-row .chip-button:nth-child(4) {
+  background: radial-gradient(circle, #2a2a2a 0%, #000000 100%);
+  border-color: #888888;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+  color: #e8e8e8;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+.chip-row .chip-button:nth-child(4):hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(0,0,0,0.7), 0 0 0 3px rgba(136,136,136,0.35);
+}
+
+/* $1000+ — fifth chip (future) */
+.chip-row .chip-button:nth-child(5) {
+  background: radial-gradient(circle, #1a1a1a 0%, #000000 100%);
+  border-color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+.chip-row .chip-button:nth-child(5):hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(0,0,0,0.7), 0 0 0 3px rgba(255,255,255,0.3);
 }
 
 .chip-button:hover:not(:disabled) {
   transform: translateY(-3px) scale(1.07);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5), 0 0 0 3px rgba(34, 197, 94, 0.3);
 }
 
 .chip-button:active:not(:disabled) {

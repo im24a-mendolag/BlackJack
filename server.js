@@ -124,21 +124,24 @@ function publicLobby(lobby) {
 }
 
 // ── Turn / game flow ──────────────────────────────────────────────────────────
-
-// Turn order: right to left = highest seat index first (n-1 → 0)
+  
+  // Turn order: left to right = lowest seat index first (0 → n-1)
 function advanceToNextPlayer(lobby) {
-  const n = lobby.players.length;
-
-  // Find the next player (lower seat index) who hasn't acted yet
-  let next = lobby.currentPlayerIndex - 1;
-  while (next >= 0) {
+  // Find the next player (higher seat index) who hasn't acted yet
+  let next = lobby.currentPlayerIndex + 1;
+  while (next < lobby.players.length) {
     const status = lobby.players[next].handStatus;
     if (status !== 'stood' && status !== 'busted' && status !== 'done') break;
-    next--;
+    next++;
   }
 
-  if (next < 0) {
-    startDealerPhase(lobby);
+  if (next >= lobby.players.length) {
+    const allBusted = lobby.players.every(p => p.handStatus === 'busted');
+    if (allBusted) {
+      resolveRound(lobby);
+    } else {
+      startDealerPhase(lobby);
+    }
   } else {
     lobby.currentPlayerIndex = next;
     lobby.players[next].handStatus = 'acting';
@@ -271,10 +274,23 @@ function dealCards(lobby) {
     return;
   }
 
-  // Start player action phase with rightmost player
+  // Auto-stand players with natural blackjack
+  for (const p of lobby.players) {
+    if (getHandTotal(p.hand) === 21) p.handStatus = 'stood';
+  }
+
+  // Start player action phase with leftmost player who still needs to act
   lobby.status = 'playing';
-  lobby.currentPlayerIndex = n - 1;
-  lobby.players[n - 1].handStatus = 'acting';
+  const firstActive = lobby.players.findIndex(p => p.handStatus === 'waiting');
+  if (firstActive === -1) {
+    // All players have blackjack — go straight to dealer
+    lobby.currentPlayerIndex = -1;
+    broadcast(lobby, { type: 'game:dealt', state: publicLobby(lobby) });
+    setTimeout(() => startDealerPhase(lobby), 1500);
+    return;
+  }
+  lobby.currentPlayerIndex = firstActive;
+  lobby.players[firstActive].handStatus = 'acting';
 
   broadcast(lobby, { type: 'game:dealt', state: publicLobby(lobby) });
 }
@@ -345,7 +361,7 @@ function handleMessage(ws, raw) {
     const lobby = lobbies.get(code?.toUpperCase());
     if (!lobby) { send(ws, { type: 'error', message: 'Lobby not found.' }); return; }
     if (lobby.status !== 'waiting') { send(ws, { type: 'error', message: 'Game has already started.' }); return; }
-    if (lobby.players.length >= 3) { send(ws, { type: 'error', message: 'Lobby is full (3/3).' }); return; }
+    if (lobby.players.length >= 5) { send(ws, { type: 'error', message: 'Lobby is full (5/5).' }); return; }
     if (lobby.players.some(p => p.id === ws._id)) { send(ws, { type: 'error', message: 'Already in lobby.' }); return; }
 
     const prevCode = playerLobbies.get(ws._id);
@@ -462,15 +478,19 @@ function handleMessage(ws, raw) {
 
     setTimeout(() => {
       if (!lobbies.has(lobby.code)) return;
-      // After double, player must stand (regardless of total)
       const status = total > 21 ? 'busted' : 'stood';
-      // Double can only happen on the first hand (before split), so no split transition needed
-      player.handStatus = status;
-      broadcast(lobby, { type: 'game:state', state: publicLobby(lobby) });
-      setTimeout(() => {
-        if (!lobbies.has(lobby.code)) return;
-        advanceToNextPlayer(lobby);
-      }, 600);
+      if (player.splitHand && player.splitHand.length > 0) {
+        // Doubled on hand 1 of a split — transition to hand 2
+        transitionToSplitHand2(player);
+        broadcast(lobby, { type: 'game:state', state: publicLobby(lobby) });
+      } else {
+        player.handStatus = status;
+        broadcast(lobby, { type: 'game:state', state: publicLobby(lobby) });
+        setTimeout(() => {
+          if (!lobbies.has(lobby.code)) return;
+          advanceToNextPlayer(lobby);
+        }, 600);
+      }
     }, 700);
     return;
   }
@@ -517,13 +537,15 @@ function cleanupPlayerFromLobby(wsId, code) {
   // Reassign host if the host left
   if (lobby.hostId === wsId) lobby.hostId = lobby.players[0].id;
 
-  // Adjust currentPlayerIndex if needed
+  // Adjust currentPlayerIndex if needed (left-to-right order)
   if (lobby.status === 'playing') {
     if (idx < lobby.currentPlayerIndex) {
+      // A player before the current one left — shift index down
       lobby.currentPlayerIndex--;
     } else if (idx === lobby.currentPlayerIndex) {
-      // The current player disconnected — advance
-      lobby.currentPlayerIndex = Math.min(lobby.currentPlayerIndex, lobby.players.length - 1);
+      // The current player disconnected — set index one before so advanceToNextPlayer
+      // picks up the player that shifted into this slot (or ends the phase)
+      lobby.currentPlayerIndex = idx - 1;
       broadcast(lobby, { type: 'lobby:player-left', state: publicLobby(lobby) });
       advanceToNextPlayer(lobby);
       return;

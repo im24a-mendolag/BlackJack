@@ -20,7 +20,7 @@ export default function MultiplayerWaiting({ gameState, playerId, onStart, onLea
 
         <div className="mp-player-list">
           <div className="mp-player-list-label">
-            Players ({players.length}/3)
+            Players ({players.length}/5)
           </div>
           {players.map((p, i) => (
             <div key={p.id} className={`mp-player-row${p.id === playerId ? ' mp-player-row-me' : ''}`}>
@@ -34,7 +34,7 @@ export default function MultiplayerWaiting({ gameState, playerId, onStart, onLea
             </div>
           ))}
           {/* Empty slot indicators */}
-          {Array.from({ length: 3 - players.length }).map((_, i) => (
+          {Array.from({ length: 5 - players.length }).map((_, i) => (
             <div key={`empty-${i}`} className="mp-player-row mp-player-row-empty">
               <span className="mp-player-seat">Seat {players.length + i + 1}</span>
               <span className="mp-player-name mp-empty-name">Waiting…</span>
