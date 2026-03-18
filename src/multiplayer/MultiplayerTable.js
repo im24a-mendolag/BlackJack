@@ -58,6 +58,7 @@ function resultLabel(result) {
     : result === 'House Wins' ? 'Loss'
     : result === 'Blackjack!' ? 'BJ!'
     : result === 'Push' ? 'Push'
+    : result === 'Resigned' ? 'Resign'
     : null;
 }
 
@@ -239,6 +240,7 @@ function ActionButtons({ player, send }) {
   const alreadySplit = player.hand1Completed && player.hand1Completed.length > 0;
   const canSplit = hand.length === 2 && !hasSplitWaiting && !alreadySplit && hand[0]?.value === hand[1]?.value && player.bankroll >= player.bet;
   const canDouble = hand.length === 2 && player.bankroll >= player.bet;
+  const canResign = hand.length === 2 && !hasSplitWaiting && !alreadySplit;
   const canHit = hand.length > 0 && getHandTotal(hand) < 21;
 
   return (
@@ -257,6 +259,9 @@ function ActionButtons({ player, send }) {
           Split <kbd className="key-hint">A</kbd>
         </button>
       )}
+      <button className="action-btn btn-resign" disabled={!canResign} onClick={() => { if (canResign) send({ type: 'player:resign' }); }}>
+        Resign <kbd className="key-hint">R</kbd>
+      </button>
     </div>
   );
 }
@@ -292,6 +297,9 @@ export default function MultiplayerTable({ gameState, playerId, send, onLeave, v
       } else if (k === 'a') {
         if (p?.hand.length === 2 && p.hand[0]?.value === p.hand[1]?.value && !p.splitHand && !p.hand1Completed && p.bankroll >= p.bet)
           send({ type: 'player:split' });
+      } else if (k === 'r') {
+        if (p?.hand.length === 2 && !p.splitHand && !p.hand1Completed)
+          send({ type: 'player:resign' });
       }
     };
     window.addEventListener('keydown', onKey);
@@ -423,7 +431,7 @@ export default function MultiplayerTable({ gameState, playerId, send, onLeave, v
                 {players.map(p => (
                   <div key={p.id} className="mp-round-result-row">
                     <span className="mp-round-result-name">{p.name}:</span>
-                    <span className={`mp-round-result-label ${p.result === 'Player Wins' || p.result === 'Blackjack!' ? 'stat-win' : p.result === 'Push' ? 'stat-push' : 'stat-loss'}`}>
+                    <span className={`mp-round-result-label ${p.result === 'Player Wins' || p.result === 'Blackjack!' ? 'stat-win' : p.result === 'Push' ? 'stat-push' : p.result === 'Resigned' ? 'stat-loss' : 'stat-loss'}`}>
                       {p.result || '—'}
                     </span>
                     {p.splitResult && (

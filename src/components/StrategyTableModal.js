@@ -11,6 +11,7 @@ function cellClass(code) {
   if (code === 'D')  return 'sc-d';
   if (code === 'DS') return 'sc-ds';
   if (code === 'P')  return 'sc-p';
+  if (code === 'Rh') return 'sc-rh';
   return '';
 }
 
@@ -60,6 +61,7 @@ export default function StrategyTableModal({ onClose }) {
           <span className="st-leg sc-d">D Double</span>
           <span className="st-leg sc-ds">DS Dbl/Std</span>
           <span className="st-leg sc-p">P Split</span>
+          <span className="st-leg sc-rh">Rh Resign/Hit</span>
         </div>
         <div className="st-tables">
           <StrategyTable

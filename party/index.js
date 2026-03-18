@@ -293,6 +293,25 @@ export default class BlackjackParty {
       return;
     }
 
+    // ── Resign ────────────────────────────────────────────────────────────────
+    if (type === 'player:resign') {
+      if (player.hand.length !== 2) return;
+      const alreadySplit = player.splitHand !== null || player.hand1Completed !== null;
+      if (alreadySplit) return;
+      const halfBet = Math.floor(player.bet / 2);
+      player.bankroll += halfBet;
+      player.bet = player.bet - halfBet;
+      player.handStatus = 'stood';
+      player.result = 'Resigned';
+      player.resultAmount = player.bet;
+      this.broadcast({ type: 'game:state', state: this.publicState() });
+      setTimeout(() => {
+        if (this.players.length === 0) return;
+        this.advanceToNextPlayer();
+      }, 300);
+      return;
+    }
+
     // ── Split ─────────────────────────────────────────────────────────────────
     if (type === 'player:split') {
       const alreadySplit = player.splitHand !== null || player.hand1Completed !== null;
@@ -366,6 +385,8 @@ export default class BlackjackParty {
 
     for (const player of this.players) {
       player.handStatus = 'done';
+
+      if (player.result === 'Resigned') continue;
 
       if (player.hand1Completed && player.hand1Completed.length > 0) {
         // ── Split resolution ─────────────────────────────────────────────────

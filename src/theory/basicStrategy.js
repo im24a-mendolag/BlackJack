@@ -12,8 +12,8 @@ export const HARD = {
   12: ['H','H','S','S','S','H','H','H','H','H'],
   13: ['S','S','S','S','S','H','H','H','H','H'],
   14: ['S','S','S','S','S','H','H','H','H','H'],
-  15: ['S','S','S','S','S','H','H','H','H','H'],
-  16: ['S','S','S','S','S','H','H','H','H','H'],
+  15: ['S','S','S','S','S','H','H','H','Rh','H'],
+  16: ['S','S','S','S','S','H','H','Rh','Rh','Rh'],
   17: ['S','S','S','S','S','S','S','S','S','S'],
   // 18–21: always stand (handled in function)
 };
@@ -51,8 +51,9 @@ function dealerCol(dealerUpcard) {
   return Number(v) - 2; // 2→0, 3→1, … 9→7
 }
 
-function resolveCode(code, canDouble, canSplit) {
+function resolveCode(code, canDouble, canSplit, canResign) {
   if (code === 'P')  return canSplit  ? 'split'  : 'hit';
+  if (code === 'Rh') return canResign ? 'resign' : 'hit';
   if (code === 'D')  return canDouble ? 'double' : 'hit';
   if (code === 'DS') return canDouble ? 'double' : 'stand';
   if (code === 'S')  return 'stand';
@@ -61,7 +62,7 @@ function resolveCode(code, canDouble, canSplit) {
 
 const normFace = (v) => ['J', 'Q', 'K'].includes(String(v)) ? '10' : String(v);
 
-export function getBasicStrategyAction(playerHand, dealerUpcard, canDouble, canSplit) {
+export function getBasicStrategyAction(playerHand, dealerUpcard, canDouble, canSplit, canResign = false) {
   const col = dealerCol(dealerUpcard);
 
   // --- Pairs (only on 2-card hand when split is available) ---
@@ -69,7 +70,7 @@ export function getBasicStrategyAction(playerHand, dealerUpcard, canDouble, canS
     const v0 = normFace(playerHand[0].value);
     const v1 = normFace(playerHand[1].value);
     if (v0 === v1 && PAIRS[v0]) {
-      return resolveCode(PAIRS[v0][col], canDouble, canSplit);
+      return resolveCode(PAIRS[v0][col], canDouble, canSplit, canResign);
     }
   }
 
@@ -80,9 +81,8 @@ export function getBasicStrategyAction(playerHand, dealerUpcard, canDouble, canS
     if (nonAce) {
       const pip = ['J', 'Q', 'K'].includes(String(nonAce.value)) ? 10 : Number(nonAce.value);
       if (pip <= 9 && SOFT[pip]) {
-        return resolveCode(SOFT[pip][col], canDouble, canSplit);
+        return resolveCode(SOFT[pip][col], canDouble, canSplit, canResign);
       }
-      // pip === 10 → soft 21 (blackjack) — never reaches player phase
     }
   }
 
@@ -98,5 +98,5 @@ export function getBasicStrategyAction(playerHand, dealerUpcard, canDouble, canS
 
   if (total >= 18) return 'stand';
   const row = HARD[Math.max(5, Math.min(17, total))];
-  return resolveCode(row[col], canDouble, canSplit);
+  return resolveCode(row[col], canDouble, canSplit, canResign);
 }

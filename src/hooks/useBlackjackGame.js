@@ -60,6 +60,7 @@ export function useBlackjackGame({
   practiceSoftHands,
   practicePairs,
   testHand,
+  earlyResign = false,
 }) {
   const {
     deck, setDeck,
@@ -281,7 +282,7 @@ export function useBlackjackGame({
         setGamePhase('player');
         if (trainingModeRef.current === 'basic') {
           const canSplitNow = finalPlayer[0].value === finalPlayer[1].value;
-          setExpectedAction(getBasicStrategyAction(finalPlayer, finalDealer[1], true, canSplitNow));
+          setExpectedAction(getBasicStrategyAction(finalPlayer, finalDealer[1], true, canSplitNow, true));
         }
       }
     }, 2600);
@@ -345,6 +346,66 @@ export function useBlackjackGame({
     setTimeout(() => setSplitHand2([card2, newCard2]), 1300);
   }, [playerHand, splitHand2, splitHand1Completed, currentBet, bankroll, deck, setBankroll, setDeck, setPlayerHand,
       handleActionValidation]);
+
+  const handleResign = useCallback(() => {
+    if (playerHand.length !== 2 || splitHand2.length > 0 || splitHand1Completed.length > 0) return;
+    handleActionValidation('resign');
+    if (trainingModeRef.current === 'basic') return;
+
+    const handId = handIdRef.current;
+    const dealerTotal = getHandTotal(dealerHand);
+    const dealerHasBJ = dealerHand.length === 2 && dealerTotal === 21;
+
+    if (!earlyResign && dealerHasBJ) {
+      gameTransitionRef.current = true;
+      setPlayerTurn(false);
+      setStatusMessage('Dealer Blackjack!');
+      playSound('bust');
+      const ph = playerHand.slice();
+      const dh = dealerHand.slice();
+      setTimeout(() => {
+        if (handIdRef.current !== handId) return;
+        setStatusMessage('');
+        resolveRound(ph, dh);
+        setGamePhase('result');
+      }, 1500);
+    } else {
+      gameTransitionRef.current = true;
+      const halfBet = Math.floor(currentBet / 2);
+      setBankroll(prev => prev + halfBet);
+      setPlayerTurn(false);
+      setStatusMessage('Resigned!');
+      playSound('bust');
+      const lostAmount = currentBet - halfBet;
+      setTimeout(() => {
+        if (handIdRef.current !== handId) return;
+        setStatusMessage('');
+        setWinner('House Wins');
+        setResultMessage('Resigned');
+        setResultAmount(lostAmount);
+        const incomeDelta = -lostAmount;
+        setStats(prev => {
+          const next = {
+            hands: prev.hands + 1,
+            wins: prev.wins,
+            losses: prev.losses + 1,
+            pushes: prev.pushes,
+            totalIncome: prev.totalIncome + incomeDelta,
+            blackjacks: prev.blackjacks,
+          };
+          const s = strategyStatsRef.current;
+          const trainingStats = trainingModeRef.current === 'basic' ? {
+            trainingHands: initialTrainingRef.current.hands + s.total,
+            trainingCorrect: initialTrainingRef.current.correct + s.correct,
+          } : undefined;
+          onRoundEnd?.({ bankroll: bankrollRef.current + halfBet, stats: next, trainingStats });
+          return next;
+        });
+        setGamePhase('result');
+      }, 1500);
+    }
+  }, [playerHand, splitHand2, splitHand1Completed, dealerHand, currentBet, earlyResign,
+      setBankroll, setPlayerTurn, resolveRound, handleActionValidation, onRoundEnd]);
 
   const handleResultsClose = useCallback(() => {
     gameTransitionRef.current = false;
@@ -596,12 +657,13 @@ export function useBlackjackGame({
           break;
         case 'd': handleDouble(); break;
         case 'a': handleSplit(); break;
+        case 'r': handleResign(); break;
         default: break;
       }
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gamePhase, playerHand, deck, handleDouble, handleSplit, setPlayerHand, setDeck, setPlayerTurn, handleActionValidation]);
+  }, [gamePhase, playerHand, deck, handleDouble, handleSplit, handleResign, setPlayerHand, setDeck, setPlayerTurn, handleActionValidation]);
 
   // ── Auto-advance training-result after 1.8s ──────────────────────────────────
 
@@ -633,6 +695,7 @@ export function useBlackjackGame({
   const hasSplitPair   = playerHand.length === 2 && playerHand[0]?.value === playerHand[1]?.value && splitHand2.length === 0 && splitHand1Completed.length === 0;
   const canSplit       = hasSplitPair && currentBet <= bankroll;
   const canDouble      = playerHand.length === 2 && currentBet <= bankroll;
+  const canResign      = playerHand.length === 2 && splitHand2.length === 0 && splitHand1Completed.length === 0;
 
   return {
     // State
@@ -642,9 +705,9 @@ export function useBlackjackGame({
     // DeckContext values (re-exported for convenience)
     playerHand, dealerHand, bankroll, currentBet,
     // Derived
-    isSplitActive, isOutOfMoney, hasSplitPair, canSplit, canDouble,
+    isSplitActive, isOutOfMoney, hasSplitPair, canSplit, canDouble, canResign,
     // Handlers
-    dealCards, cancelHand, handleDouble, handleSplit,
+    dealCards, cancelHand, handleDouble, handleSplit, handleResign,
     handleReset, handleResultsClose, handleActionValidation,
   };
 }
